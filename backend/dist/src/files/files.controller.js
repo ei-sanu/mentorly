@@ -56,7 +56,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], FilesController.prototype, "mockUpload", null);
 __decorate([
-    (0, common_1.Get)('mock-download/*'),
+    (0, common_1.Get)('mock-download/*path'),
     (0, swagger_1.ApiOperation)({ summary: 'Mock local download receiver' }),
     __param(0, (0, common_1.Res)()),
     __metadata("design:type", Function),

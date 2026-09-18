@@ -116,7 +116,8 @@ let MentorsService = class MentorsService {
         const total = await this.mentorProfileModel.countDocuments(where);
         const mentors = await this.mentorProfileModel
             .find(where)
-            .populate('userId')
+            .select('-mentorEmbedding -__v')
+            .populate({ path: 'userId', select: 'firstName lastName avatar email' })
             .sort(sortObj)
             .skip(skip)
             .limit(limit)
@@ -136,7 +137,8 @@ let MentorsService = class MentorsService {
     async findOne(id) {
         const mentor = await this.mentorProfileModel
             .findById(id)
-            .populate('userId')
+            .select('-mentorEmbedding -__v')
+            .populate({ path: 'userId', select: 'firstName lastName avatar email' })
             .lean();
         if (!mentor) {
             throw new common_1.NotFoundException(`Mentor with ID ${id} not found`);
@@ -149,7 +151,8 @@ let MentorsService = class MentorsService {
     async getProfileByUserId(userId) {
         const profile = await this.mentorProfileModel
             .findOne({ userId })
-            .populate('userId')
+            .select('-mentorEmbedding -__v')
+            .populate({ path: 'userId', select: 'firstName lastName avatar email' })
             .lean();
         if (!profile) {
             throw new common_1.NotFoundException(`Mentor profile not found for user ${userId}`);

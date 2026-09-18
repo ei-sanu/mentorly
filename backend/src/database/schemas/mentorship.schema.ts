@@ -31,3 +31,6 @@ export class Mentorship {
 }
 
 export const MentorshipSchema = SchemaFactory.createForClass(Mentorship);
+
+MentorshipSchema.index({ studentProfileId: 1, status: 1 });
+MentorshipSchema.index({ mentorProfileId: 1, status: 1 });

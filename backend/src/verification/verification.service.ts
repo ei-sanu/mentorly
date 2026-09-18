@@ -45,13 +45,30 @@ export class VerificationService {
         redisOptions.tls = { rejectUnauthorized: false };
       }
       this.redis = process.env.REDIS_URL
-        ? new Redis(process.env.REDIS_URL, { lazyConnect: true, ...redisOptions })
+        ? new Redis(process.env.REDIS_URL, {
+            lazyConnect: true,
+            ...redisOptions,
+            maxRetriesPerRequest: 1,
+            enableOfflineQueue: false,
+            connectTimeout: 5000,
+            retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 2000)),
+          })
         : new Redis({
             host: process.env.REDIS_HOST || 'localhost',
             port: parseInt(process.env.REDIS_PORT || '6379', 10),
             lazyConnect: true,
-            ...redisOptions
+            ...redisOptions,
+            maxRetriesPerRequest: 1,
+            enableOfflineQueue: false,
+            connectTimeout: 5000,
+            retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 2000)),
           });
+      this.redis.on('error', (err) => {
+        if (!(this.redis as any).__loggedError) {
+          (this.redis as any).__loggedError = true;
+          console.warn(`[verification] Redis unavailable: ${err.message}. Rate-limiting via Redis disabled.`);
+        }
+      });
     } catch (err) {
       console.error('Failed to initialize Redis inside VerificationService:', err);
     }

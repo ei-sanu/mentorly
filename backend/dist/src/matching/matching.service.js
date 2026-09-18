@@ -147,18 +147,38 @@ let MatchingService = MatchingService_1 = class MatchingService {
         const weights = await this.getMatchingWeights();
         let mentors = [];
         if (mentorProfileId) {
-            const single = await this.mentorProfileModel.findById(mentorProfileId).populate('userId').lean();
+            const single = await this.mentorProfileModel
+                .findById(mentorProfileId)
+                .select('-mentorEmbedding -__v')
+                .populate({ path: 'userId', select: 'firstName lastName avatar' })
+                .lean();
             if (single)
                 mentors = [single];
         }
         else {
-            mentors = await this.mentorProfileModel.find({
+            mentors = await this.mentorProfileModel
+                .find({
                 verificationStatus: mentor_profile_schema_1.VerificationStatus.VERIFIED,
                 status: mentor_profile_schema_1.MentorStatus.ACTIVE,
                 acceptingMentees: true,
                 profileVisibility: true,
                 $expr: { $lt: ['$currentMenteesCount', '$maxCapacity'] },
-            }).populate('userId').lean();
+            })
+                .select('-mentorEmbedding -__v')
+                .populate({ path: 'userId', select: 'firstName lastName avatar' })
+                .lean();
+        }
+        const mentorIds = mentors.map((m) => m._id);
+        const availabilityRows = mentorIds.length
+            ? await this.availabilityModel
+                .find({ mentorProfileId: { $in: mentorIds } })
+                .select('mentorProfileId')
+                .lean()
+            : [];
+        const availabilityByMentor = new Map();
+        for (const row of availabilityRows) {
+            const key = row.mentorProfileId.toString();
+            availabilityByMentor.set(key, (availabilityByMentor.get(key) ?? 0) + 1);
         }
         let semanticScores = {};
         let isFallback = false;
@@ -187,7 +207,6 @@ let MatchingService = MatchingService_1 = class MatchingService {
         const recommendations = [];
         for (const m of mentors) {
             const mIdStr = m._id.toString();
-            const mAvailabilities = await this.availabilityModel.find({ mentorProfileId: m._id }).lean();
             let careerGoalScore = 0;
             if (student.careerGoals.length > 0 && m.mentoringAreas.length > 0) {
                 const intersection = student.careerGoals.filter((g) => m.mentoringAreas.some((a) => a.toLowerCase().includes(g.toLowerCase()) || g.toLowerCase().includes(a.toLowerCase())));
@@ -203,7 +222,7 @@ let MatchingService = MatchingService_1 = class MatchingService {
                 student.targetRole.toLowerCase().includes(m.currentDesignation.toLowerCase())
                 ? 1.0
                 : 0.0;
-            const availabilityScore = mAvailabilities.length > 0 ? 1.0 : 0.5;
+            const availabilityScore = (availabilityByMentor.get(mIdStr) ?? 0) > 0 ? 1.0 : 0.5;
             const semanticScore = semanticScores[mIdStr] !== undefined ? semanticScores[mIdStr] : 0.5;
             const totalWeight = weights.semanticSimilarity +
                 weights.careerGoal +

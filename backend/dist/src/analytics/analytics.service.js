@@ -55,13 +55,30 @@ let AnalyticsService = class AnalyticsService {
                 redisOptions.tls = { rejectUnauthorized: false };
             }
             this.redis = process.env.REDIS_URL
-                ? new ioredis_1.default(process.env.REDIS_URL, { lazyConnect: true, ...redisOptions })
+                ? new ioredis_1.default(process.env.REDIS_URL, {
+                    lazyConnect: true,
+                    ...redisOptions,
+                    maxRetriesPerRequest: 1,
+                    enableOfflineQueue: false,
+                    connectTimeout: 5000,
+                    retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 2000)),
+                })
                 : new ioredis_1.default({
                     host: process.env.REDIS_HOST || 'localhost',
                     port: parseInt(process.env.REDIS_PORT || '6379', 10),
                     lazyConnect: true,
                     ...redisOptions,
+                    maxRetriesPerRequest: 1,
+                    enableOfflineQueue: false,
+                    connectTimeout: 5000,
+                    retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 2000)),
                 });
+            this.redis.on('error', (err) => {
+                if (!this.redis.__loggedError) {
+                    this.redis.__loggedError = true;
+                    console.warn(`[analytics] Redis unavailable: ${err.message}. Cache disabled.`);
+                }
+            });
         }
         catch {
             this.redis = null;
@@ -645,9 +662,11 @@ let AnalyticsService = class AnalyticsService {
         };
     }
     async getMentorUtilization() {
-        const mentors = await this.mentorProfileModel.find({
-            verificationStatus: mentor_profile_schema_1.VerificationStatus.VERIFIED
-        }).populate('userId').lean();
+        const mentors = await this.mentorProfileModel
+            .find({ verificationStatus: mentor_profile_schema_1.VerificationStatus.VERIFIED })
+            .select('-mentorEmbedding -__v')
+            .populate({ path: 'userId', select: 'firstName lastName' })
+            .lean();
         const list = mentors.map((m) => {
             const current = m.currentMenteesCount || 0;
             const max = m.maxCapacity || 3;
@@ -678,17 +697,16 @@ let AnalyticsService = class AnalyticsService {
             verificationStatus: mentor_profile_schema_1.VerificationStatus.VERIFIED,
             status: mentor_profile_schema_1.MentorStatus.ACTIVE,
         }).limit(20).lean();
+        const sample = students.slice(0, 5);
+        const results = await Promise.all(sample.map((student) => this.matchingService
+            .calculateRecommendation(student.userId.toString())
+            .catch(() => [])));
         let sumMatchScore = 0;
         let scoreCount = 0;
-        for (const student of students) {
-            try {
-                const recommendations = await this.matchingService.calculateRecommendation(student.userId.toString());
-                recommendations.forEach((r) => {
-                    sumMatchScore += r.matchScore;
-                    scoreCount++;
-                });
-            }
-            catch (err) {
+        for (const recommendations of results) {
+            for (const r of recommendations) {
+                sumMatchScore += r.matchScore;
+                scoreCount++;
             }
         }
         const averageMatchScore = scoreCount > 0 ? Math.round(sumMatchScore / scoreCount) : 82;

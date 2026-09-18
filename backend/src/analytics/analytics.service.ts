@@ -56,13 +56,30 @@ export class AnalyticsService {
         redisOptions.tls = { rejectUnauthorized: false };
       }
       this.redis = process.env.REDIS_URL
-        ? new Redis(process.env.REDIS_URL, { lazyConnect: true, ...redisOptions })
+        ? new Redis(process.env.REDIS_URL, {
+            lazyConnect: true,
+            ...redisOptions,
+            maxRetriesPerRequest: 1,
+            enableOfflineQueue: false,
+            connectTimeout: 5000,
+            retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 2000)),
+          })
         : new Redis({
             host: process.env.REDIS_HOST || 'localhost',
             port: parseInt(process.env.REDIS_PORT || '6379', 10),
             lazyConnect: true,
             ...redisOptions,
+            maxRetriesPerRequest: 1,
+            enableOfflineQueue: false,
+            connectTimeout: 5000,
+            retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 2000)),
           });
+      this.redis.on('error', (err) => {
+        if (!(this.redis as any).__loggedError) {
+          (this.redis as any).__loggedError = true;
+          console.warn(`[analytics] Redis unavailable: ${err.message}. Cache disabled.`);
+        }
+      });
     } catch {
       this.redis = null;
     }
@@ -756,9 +773,11 @@ export class AnalyticsService {
   }
 
   async getMentorUtilization() {
-    const mentors = await this.mentorProfileModel.find({
-      verificationStatus: VerificationStatus.VERIFIED
-    }).populate('userId').lean();
+    const mentors = await this.mentorProfileModel
+      .find({ verificationStatus: VerificationStatus.VERIFIED })
+      .select('-mentorEmbedding -__v')
+      .populate({ path: 'userId', select: 'firstName lastName' })
+      .lean();
 
     const list = mentors.map((m: any) => {
       const current = m.currentMenteesCount || 0;
@@ -794,18 +813,22 @@ export class AnalyticsService {
       status: MentorStatus.ACTIVE,
     }).limit(20).lean();
 
+    // Fan-out in parallel instead of serial N+1; cap to 5 students to bound latency
+    const sample = students.slice(0, 5);
+    const results = await Promise.all(
+      sample.map((student) =>
+        this.matchingService
+          .calculateRecommendation(student.userId.toString())
+          .catch(() => [] as any[]),
+      ),
+    );
+
     let sumMatchScore = 0;
     let scoreCount = 0;
-
-    for (const student of students) {
-      try {
-        const recommendations = await this.matchingService.calculateRecommendation(student.userId.toString());
-        recommendations.forEach((r: any) => {
-          sumMatchScore += r.matchScore;
-          scoreCount++;
-        });
-      } catch (err) {
-        // Skip on error
+    for (const recommendations of results) {
+      for (const r of recommendations as any[]) {
+        sumMatchScore += r.matchScore;
+        scoreCount++;
       }
     }
 

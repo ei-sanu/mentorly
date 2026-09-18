@@ -48,34 +48,41 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
     private readonly emailService: EmailService,
   ) {}
 
-  async onModuleInit() {
-    const connection: any = {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379', 10),
-    };
+    async onModuleInit() {
+      const connection: any = {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379', 10),
+        maxRetriesPerRequest: 1,
+        enableReadyCheck: false,
+        connectTimeout: 5000,
+        retryStrategy: (times: number) => (times > 5 ? null : Math.min(times * 200, 2000)),
+      };
 
-    if (process.env.REDIS_URL) {
-      try {
-        const parsed = new URL(process.env.REDIS_URL);
-        connection.host = parsed.hostname;
-        connection.port = parseInt(parsed.port || '6379', 10);
-        if (parsed.password) {
-          connection.password = decodeURIComponent(parsed.password);
+      if (process.env.REDIS_URL) {
+        try {
+          const parsed = new URL(process.env.REDIS_URL);
+          connection.host = parsed.hostname;
+          connection.port = parseInt(parsed.port || '6379', 10);
+          if (parsed.password) {
+            connection.password = decodeURIComponent(parsed.password);
+          }
+          if (parsed.username) {
+            connection.username = parsed.username;
+          }
+          if (process.env.REDIS_URL.startsWith('rediss://')) {
+            connection.tls = { rejectUnauthorized: false };
+          }
+        } catch (err) {
+          this.logger.warn(`Failed to parse REDIS_URL: ${err.message}`);
         }
-        if (parsed.username) {
-          connection.username = parsed.username;
-        }
-        if (process.env.REDIS_URL.startsWith('rediss://')) {
-          connection.tls = { rejectUnauthorized: false };
-        }
-      } catch (err) {
-        this.logger.warn(`Failed to parse REDIS_URL: ${err.message}`);
       }
-    }
 
     // Instantiate Queues
     this.embeddingQueue = new Queue('embeddings', { connection });
     this.emailQueue = new Queue('emails', { connection });
+
+    this.embeddingQueue.on('error', (err) => this.logger.warn(`[embeddingQueue] ${err.message}`));
+    this.emailQueue.on('error', (err) => this.logger.warn(`[emailQueue] ${err.message}`));
 
     // Instantiate Workers
     this.workerEmbedding = new Worker(
@@ -97,6 +104,7 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
       },
       { connection, concurrency: 2 },
     );
+    this.workerEmbedding.on('error', (err) => this.logger.warn(`[embeddingWorker] ${err.message}`));
 
     this.workerEmail = new Worker(
       'emails',
@@ -112,6 +120,7 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
       },
       { connection, concurrency: 3 },
     );
+    this.workerEmail.on('error', (err) => this.logger.warn(`[emailWorker] ${err.message}`));
 
     // Periodic sweep every 1 minute
     this.intervalId = setInterval(async () => {

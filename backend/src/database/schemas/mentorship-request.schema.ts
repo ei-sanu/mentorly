@@ -30,3 +30,7 @@ export class MentorshipRequest {
 }
 
 export const MentorshipRequestSchema = SchemaFactory.createForClass(MentorshipRequest);
+
+MentorshipRequestSchema.index({ studentId: 1, status: 1, createdAt: -1 });
+MentorshipRequestSchema.index({ mentorId: 1, status: 1, createdAt: -1 });
+MentorshipRequestSchema.index({ studentId: 1, status: 1 });

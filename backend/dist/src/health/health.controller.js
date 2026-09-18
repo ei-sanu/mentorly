@@ -40,12 +40,24 @@ let HealthController = class HealthController {
                 redisOptions.tls = { rejectUnauthorized: false };
             }
             redis = process.env.REDIS_URL
-                ? new ioredis_1.default(process.env.REDIS_URL, { lazyConnect: true, ...redisOptions })
+                ? new ioredis_1.default(process.env.REDIS_URL, {
+                    lazyConnect: true,
+                    ...redisOptions,
+                    maxRetriesPerRequest: 1,
+                    enableOfflineQueue: false,
+                    connectTimeout: 5000,
+                    retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 2000)),
+                })
                 : new ioredis_1.default({
                     host: process.env.REDIS_HOST || 'localhost',
                     port: parseInt(process.env.REDIS_PORT || '6379', 10),
                     lazyConnect: true,
+                    maxRetriesPerRequest: 1,
+                    enableOfflineQueue: false,
+                    connectTimeout: 5000,
+                    retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 2000)),
                 });
+            redis.on('error', () => undefined);
             await redis.connect();
             const ping = await redis.ping();
             if (ping !== 'PONG') {

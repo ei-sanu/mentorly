@@ -56,3 +56,6 @@ export class StudentProfile {
 }
 
 export const StudentProfileSchema = SchemaFactory.createForClass(StudentProfile);
+
+StudentProfileSchema.index({ targetIndustry: 1 });
+StudentProfileSchema.index({ targetRole: 1 });

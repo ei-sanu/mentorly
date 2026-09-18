@@ -83,4 +83,6 @@ exports.StudentProfile = StudentProfile = __decorate([
     (0, mongoose_1.Schema)({ timestamps: true })
 ], StudentProfile);
 exports.StudentProfileSchema = mongoose_1.SchemaFactory.createForClass(StudentProfile);
+exports.StudentProfileSchema.index({ targetIndustry: 1 });
+exports.StudentProfileSchema.index({ targetRole: 1 });
 //# sourceMappingURL=student-profile.schema.js.map

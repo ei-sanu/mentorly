@@ -104,4 +104,10 @@ exports.MentorProfile = MentorProfile = __decorate([
     (0, mongoose_1.Schema)({ timestamps: true })
 ], MentorProfile);
 exports.MentorProfileSchema = mongoose_1.SchemaFactory.createForClass(MentorProfile);
+exports.MentorProfileSchema.index({
+    verificationStatus: 1,
+    status: 1,
+    acceptingMentees: 1,
+    profileVisibility: 1,
+});
 //# sourceMappingURL=mentor-profile.schema.js.map

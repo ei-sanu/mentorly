@@ -48,4 +48,6 @@ exports.Mentorship = Mentorship = __decorate([
     (0, mongoose_1.Schema)({ timestamps: true })
 ], Mentorship);
 exports.MentorshipSchema = mongoose_1.SchemaFactory.createForClass(Mentorship);
+exports.MentorshipSchema.index({ studentProfileId: 1, status: 1 });
+exports.MentorshipSchema.index({ mentorProfileId: 1, status: 1 });
 //# sourceMappingURL=mentorship.schema.js.map

@@ -48,6 +48,10 @@ let JobsService = JobsService_1 = class JobsService {
         const connection = {
             host: process.env.REDIS_HOST || 'localhost',
             port: parseInt(process.env.REDIS_PORT || '6379', 10),
+            maxRetriesPerRequest: 1,
+            enableReadyCheck: false,
+            connectTimeout: 5000,
+            retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 2000)),
         };
         if (process.env.REDIS_URL) {
             try {
@@ -70,6 +74,8 @@ let JobsService = JobsService_1 = class JobsService {
         }
         this.embeddingQueue = new bullmq_1.Queue('embeddings', { connection });
         this.emailQueue = new bullmq_1.Queue('emails', { connection });
+        this.embeddingQueue.on('error', (err) => this.logger.warn(`[embeddingQueue] ${err.message}`));
+        this.emailQueue.on('error', (err) => this.logger.warn(`[emailQueue] ${err.message}`));
         this.workerEmbedding = new bullmq_1.Worker('embeddings', async (job) => {
             try {
                 const { type, profileId } = job.data;
@@ -86,6 +92,7 @@ let JobsService = JobsService_1 = class JobsService {
                 throw err;
             }
         }, { connection, concurrency: 2 });
+        this.workerEmbedding.on('error', (err) => this.logger.warn(`[embeddingWorker] ${err.message}`));
         this.workerEmail = new bullmq_1.Worker('emails', async (job) => {
             try {
                 const { userId, type, title, message } = job.data;
@@ -97,6 +104,7 @@ let JobsService = JobsService_1 = class JobsService {
                 throw err;
             }
         }, { connection, concurrency: 3 });
+        this.workerEmail.on('error', (err) => this.logger.warn(`[emailWorker] ${err.message}`));
         this.intervalId = setInterval(async () => {
             await this.checkRequestExpirations();
             await this.checkOverdueActionItems();

@@ -117,4 +117,6 @@ exports.User = User = __decorate([
     (0, mongoose_1.Schema)({ timestamps: true })
 ], User);
 exports.UserSchema = mongoose_1.SchemaFactory.createForClass(User);
+exports.UserSchema.index({ role: 1, createdAt: -1 });
+exports.UserSchema.index({ role: 1, onboardingStatus: 1 });
 //# sourceMappingURL=user.schema.js.map

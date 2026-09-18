@@ -27,8 +27,9 @@ const opportunity_schema_1 = require("../database/schemas/opportunity.schema");
 const placement_application_schema_1 = require("../database/schemas/placement-application.schema");
 const event_bus_1 = require("../common/event-bus");
 let PlacementOfficerController = class PlacementOfficerController {
-    constructor(analyticsService, studentProfileModel, opportunityModel, placementApplicationModel) {
+    constructor(analyticsService, userModel, studentProfileModel, opportunityModel, placementApplicationModel) {
         this.analyticsService = analyticsService;
+        this.userModel = userModel;
         this.studentProfileModel = studentProfileModel;
         this.opportunityModel = opportunityModel;
         this.placementApplicationModel = placementApplicationModel;
@@ -40,78 +41,89 @@ let PlacementOfficerController = class PlacementOfficerController {
     async getStudents(page = '1', limit = '10', q, industry) {
         const pageNum = Math.max(1, parseInt(page, 10) || 1);
         const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
-        const users = this.studentProfileModel.db.model('User').collection.name;
-        const matchStage = [];
+        const profileCollection = this.studentProfileModel.collection.name;
+        const baseMatch = { role: user_schema_1.Role.STUDENT };
+        const postMatch = [];
         if (industry && industry.trim()) {
-            matchStage.push({ $match: { targetIndustry: industry.trim() } });
+            postMatch.push({ $match: { 'sp.targetIndustry': industry.trim() } });
         }
         if (q && q.trim()) {
             const rx = new RegExp(q.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-            matchStage.push({
+            baseMatch.$or = [
+                { firstName: rx },
+                { lastName: rx },
+                { email: rx },
+            ];
+            postMatch.push({
                 $match: {
                     $or: [
-                        { 'u.firstName': rx },
-                        { 'u.lastName': rx },
-                        { 'u.email': rx },
-                        { targetRole: rx },
-                        { targetIndustry: rx },
-                        { currentSkills: rx },
+                        { 'sp.targetRole': rx },
+                        { 'sp.targetIndustry': rx },
+                        { 'sp.currentSkills': rx },
+                        { 'sp.programme': rx },
+                        { 'sp.school': rx },
                     ],
                 },
             });
         }
-        const [result] = await this.studentProfileModel.aggregate([
+        const [result] = await this.userModel.aggregate([
+            { $match: baseMatch },
+            { $sort: { createdAt: -1 } },
             {
                 $lookup: {
-                    from: users,
-                    localField: 'userId',
-                    foreignField: '_id',
-                    as: 'u',
+                    from: profileCollection,
+                    localField: '_id',
+                    foreignField: 'userId',
+                    as: 'sp',
                 },
             },
-            { $unwind: { path: '$u', preserveNullAndEmptyArrays: true } },
-            ...matchStage,
-            { $sort: { createdAt: -1 } },
+            { $unwind: { path: '$sp', preserveNullAndEmptyArrays: true } },
+            ...postMatch,
             {
                 $facet: {
                     items: [
                         { $skip: (pageNum - 1) * limitNum },
+                        {
+                            $addFields: {
+                                profileCompletion: {
+                                    $add: [
+                                        { $cond: [{ $and: [{ $ne: ['$firstName', null] }, { $ne: ['$firstName', ''] }, { $ne: ['$lastName', null] }, { $ne: ['$lastName', ''] }, { $ne: ['$phone', null] }, { $ne: ['$phone', ''] }] }, 20, 0] },
+                                        { $cond: [{ $and: [{ $ne: ['$sp.programme', null] }, { $ne: ['$sp.programme', ''] }, { $ne: ['$sp.school', null] }, { $ne: ['$sp.school', ''] }, { $gt: ['$sp.yearOfStudy', null] }] }, 25, 0] },
+                                        { $cond: [{ $and: [{ $gt: [{ $size: { $ifNull: ['$sp.currentSkills', []] } }, 0] }, { $ne: ['$sp.targetRole', null] }, { $ne: ['$sp.targetRole', ''] }] }, 20, 0] },
+                                        { $cond: [{ $and: [{ $ne: ['$sp.preferredFrequency', null] }, { $ne: ['$sp.preferredFrequency', ''] }, { $ne: ['$sp.mentoringNeeds', null] }, { $ne: ['$sp.mentoringNeeds', ''] }] }, 20, 0] },
+                                        { $cond: [{ $in: ['$onboardingStatus', ['APPROVED', 'SUBMITTED', 'UNDER_REVIEW']] }, 15, 0] },
+                                    ],
+                                },
+                            },
+                        },
                         { $limit: limitNum },
                         {
                             $project: {
                                 _id: 1,
-                                studentName: {
-                                    $trim: { input: { $concat: ['$u.firstName', ' ', '$u.lastName'] } },
-                                },
-                                programme: 1,
-                                school: 1,
-                                yearOfStudy: 1,
-                                graduationYear: 1,
-                                targetRole: 1,
-                                targetIndustry: 1,
-                                currentSkills: 1,
+                                userId: '$_id',
+                                studentName: { $trim: { input: { $concat: ['$firstName', ' ', '$lastName'] } } },
+                                email: '$email',
+                                phone: '$phone',
+                                firstName: '$firstName',
+                                lastName: '$lastName',
+                                userCreatedAt: '$createdAt',
+                                userOnboardingStatus: '$onboardingStatus',
+                                userVerificationStatus: '$verificationStatus',
+                                hasProfile: { $cond: [{ $ifNull: ['$sp._id', false] }, true, false] },
+                                profileId: '$sp._id',
+                                programme: '$sp.programme',
+                                school: '$sp.school',
+                                yearOfStudy: '$sp.yearOfStudy',
+                                graduationYear: '$sp.graduationYear',
+                                currentSkills: '$sp.currentSkills',
+                                targetRole: '$sp.targetRole',
+                                targetIndustry: '$sp.targetIndustry',
+                                careerGoals: '$sp.careerGoals',
+                                interests: '$sp.interests',
+                                mentoringNeeds: '$sp.mentoringNeeds',
+                                preferredFrequency: '$sp.preferredFrequency',
                                 profileCompletion: 1,
-                                preferredFrequency: 1,
-                                createdAt: 1,
-                                onboardingStatus: {
-                                    $cond: [
-                                        { $eq: ['$u.verificationStatus', 'VERIFIED'] },
-                                        'APPROVED',
-                                        {
-                                            $cond: [
-                                                { $eq: ['$u.verificationStatus', 'UNDER_REVIEW'] },
-                                                'UNDER_REVIEW',
-                                                {
-                                                    $cond: [
-                                                        { $eq: ['$u.verificationStatus', 'REJECTED'] },
-                                                        'REJECTED',
-                                                        'CHANGES_REQUESTED'
-                                                    ]
-                                                }
-                                            ]
-                                        }
-                                    ]
-                                },
+                                profileCreatedAt: '$sp.createdAt',
                             },
                         },
                     ],
@@ -127,7 +139,12 @@ let PlacementOfficerController = class PlacementOfficerController {
         ]);
         return {
             success: true,
-            data: result.items.map((i) => ({ ...i, id: i._id.toString() })),
+            data: result.items.map((i) => ({
+                ...i,
+                id: (i.profileId || i._id).toString(),
+                userId: i.userId.toString(),
+                profileId: i.profileId?.toString(),
+            })),
             pagination: {
                 page: pageNum,
                 limit: limitNum,
@@ -233,23 +250,45 @@ let PlacementOfficerController = class PlacementOfficerController {
         return { success: true, data: updated };
     }
     async getStudentDetail(id) {
-        const users = this.studentProfileModel.db.model('User').collection.name;
-        const [profile] = await this.studentProfileModel.aggregate([
-            { $match: { _id: new mongoose_2.Types.ObjectId(id) } },
+        const userCollection = this.userModel.collection.name;
+        const profileCollection = this.studentProfileModel.collection.name;
+        const isObjectId = mongoose_2.Types.ObjectId.isValid(id);
+        if (!isObjectId) {
+            return { success: false, message: 'Student profile not found.' };
+        }
+        const objectId = new mongoose_2.Types.ObjectId(id);
+        const [profileHit] = await this.studentProfileModel.aggregate([
+            { $match: { _id: objectId } },
             {
-                $lookup: {
-                    from: users,
-                    localField: 'userId',
-                    foreignField: '_id',
-                    as: 'u',
-                },
+                $lookup: { from: userCollection, localField: 'userId', foreignField: '_id', as: 'u' },
             },
             { $unwind: '$u' },
             {
+                $addFields: {
+                    profileCompletion: {
+                        $add: [
+                            { $cond: [{ $and: [{ $ne: ['$u.firstName', null] }, { $ne: ['$u.firstName', ''] }, { $ne: ['$u.lastName', null] }, { $ne: ['$u.lastName', ''] }, { $ne: ['$u.phone', null] }, { $ne: ['$u.phone', ''] }] }, 20, 0] },
+                            { $cond: [{ $and: [{ $ne: ['$programme', null] }, { $ne: ['$programme', ''] }, { $ne: ['$school', null] }, { $ne: ['$school', ''] }, { $gt: ['$yearOfStudy', null] }] }, 25, 0] },
+                            { $cond: [{ $and: [{ $gt: [{ $size: { $ifNull: ['$currentSkills', []] } }, 0] }, { $ne: ['$targetRole', null] }, { $ne: ['$targetRole', ''] }] }, 20, 0] },
+                            { $cond: [{ $and: [{ $ne: ['$preferredFrequency', null] }, { $ne: ['$preferredFrequency', ''] }, { $ne: ['$mentoringNeeds', null] }, { $ne: ['$mentoringNeeds', ''] }] }, 20, 0] },
+                            { $cond: [{ $in: ['$u.onboardingStatus', ['APPROVED', 'SUBMITTED', 'UNDER_REVIEW']] }, 15, 0] },
+                        ],
+                    },
+                },
+            },
+            {
                 $project: {
                     _id: 1,
+                    userId: '$u._id',
                     studentName: { $concat: ['$u.firstName', ' ', '$u.lastName'] },
                     email: '$u.email',
+                    phone: '$u.phone',
+                    firstName: '$u.firstName',
+                    lastName: '$u.lastName',
+                    userOnboardingStatus: '$u.onboardingStatus',
+                    userVerificationStatus: '$u.verificationStatus',
+                    userCreatedAt: '$u.createdAt',
+                    hasProfile: { $literal: true },
                     programme: 1,
                     school: 1,
                     yearOfStudy: 1,
@@ -260,15 +299,68 @@ let PlacementOfficerController = class PlacementOfficerController {
                     careerGoals: 1,
                     interests: 1,
                     mentoringNeeds: 1,
+                    preferredFrequency: 1,
                     profileCompletion: 1,
-                    createdAt: 1,
+                    profileCreatedAt: '$createdAt',
+                    profileUpdatedAt: '$updatedAt',
                 },
             },
         ]);
-        if (!profile) {
-            return { success: false, message: 'Student profile not found.' };
+        if (profileHit) {
+            return { success: true, data: { ...profileHit, id: profileHit._id.toString() } };
         }
-        return { success: true, data: profile };
+        const [userHit] = await this.userModel.aggregate([
+            { $match: { _id: objectId, role: user_schema_1.Role.STUDENT } },
+            {
+                $lookup: { from: profileCollection, localField: '_id', foreignField: 'userId', as: 'sp' },
+            },
+            { $unwind: { path: '$sp', preserveNullAndEmptyArrays: true } },
+            {
+                $addFields: {
+                    profileCompletion: {
+                        $add: [
+                            { $cond: [{ $and: [{ $ne: ['$firstName', null] }, { $ne: ['$firstName', ''] }, { $ne: ['$lastName', null] }, { $ne: ['$lastName', ''] }, { $ne: ['$phone', null] }, { $ne: ['$phone', ''] }] }, 20, 0] },
+                            { $cond: [{ $and: [{ $ne: ['$sp.programme', null] }, { $ne: ['$sp.programme', ''] }, { $ne: ['$sp.school', null] }, { $ne: ['$sp.school', ''] }, { $gt: ['$sp.yearOfStudy', null] }] }, 25, 0] },
+                            { $cond: [{ $and: [{ $gt: [{ $size: { $ifNull: ['$sp.currentSkills', []] } }, 0] }, { $ne: ['$sp.targetRole', null] }, { $ne: ['$sp.targetRole', ''] }] }, 20, 0] },
+                            { $cond: [{ $and: [{ $ne: ['$sp.preferredFrequency', null] }, { $ne: ['$sp.preferredFrequency', ''] }, { $ne: ['$sp.mentoringNeeds', null] }, { $ne: ['$sp.mentoringNeeds', ''] }] }, 20, 0] },
+                            { $cond: [{ $in: ['$onboardingStatus', ['APPROVED', 'SUBMITTED', 'UNDER_REVIEW']] }, 15, 0] },
+                        ],
+                    },
+                },
+            },
+            {
+                $project: {
+                    _id: 1,
+                    userId: '$_id',
+                    studentName: { $trim: { input: { $concat: ['$firstName', ' ', '$lastName'] } } },
+                    email: '$email',
+                    phone: '$phone',
+                    firstName: '$firstName',
+                    lastName: '$lastName',
+                    userOnboardingStatus: '$onboardingStatus',
+                    userVerificationStatus: '$verificationStatus',
+                    userCreatedAt: '$createdAt',
+                    hasProfile: { $cond: [{ $ifNull: ['$sp._id', false] }, true, false] },
+                    programme: '$sp.programme',
+                    school: '$sp.school',
+                    yearOfStudy: '$sp.yearOfStudy',
+                    graduationYear: '$sp.graduationYear',
+                    currentSkills: '$sp.currentSkills',
+                    targetRole: '$sp.targetRole',
+                    targetIndustry: '$sp.targetIndustry',
+                    careerGoals: '$sp.careerGoals',
+                    interests: '$sp.interests',
+                    mentoringNeeds: '$sp.mentoringNeeds',
+                    preferredFrequency: '$sp.preferredFrequency',
+                    profileCompletion: 1,
+                    profileCreatedAt: '$sp.createdAt',
+                },
+            },
+        ]);
+        if (!userHit) {
+            return { success: false, message: 'Student not found.' };
+        }
+        return { success: true, data: { ...userHit, id: userHit._id.toString() } };
     }
 };
 exports.PlacementOfficerController = PlacementOfficerController;
@@ -281,7 +373,7 @@ __decorate([
 ], PlacementOfficerController.prototype, "getDashboard", null);
 __decorate([
     (0, common_1.Get)('students'),
-    (0, swagger_1.ApiOperation)({ summary: 'List student career profiles (paginated, searchable)' }),
+    (0, swagger_1.ApiOperation)({ summary: 'List students (paginated, searchable)' }),
     __param(0, (0, common_1.Query)('page')),
     __param(1, (0, common_1.Query)('limit')),
     __param(2, (0, common_1.Query)('q')),
@@ -340,10 +432,12 @@ exports.PlacementOfficerController = PlacementOfficerController = __decorate([
     (0, common_1.UseGuards)(clerk_auth_guard_1.ClerkAuthGuard, roles_guard_1.RolesGuard),
     (0, roles_decorator_1.Roles)(user_schema_1.Role.PLACEMENT_OFFICER, user_schema_1.Role.ADMIN),
     (0, common_1.Controller)('placement-officer'),
-    __param(1, (0, mongoose_1.InjectModel)(student_profile_schema_1.StudentProfile.name)),
-    __param(2, (0, mongoose_1.InjectModel)(opportunity_schema_1.Opportunity.name)),
-    __param(3, (0, mongoose_1.InjectModel)(placement_application_schema_1.PlacementApplication.name)),
+    __param(1, (0, mongoose_1.InjectModel)(user_schema_1.User.name)),
+    __param(2, (0, mongoose_1.InjectModel)(student_profile_schema_1.StudentProfile.name)),
+    __param(3, (0, mongoose_1.InjectModel)(opportunity_schema_1.Opportunity.name)),
+    __param(4, (0, mongoose_1.InjectModel)(placement_application_schema_1.PlacementApplication.name)),
     __metadata("design:paramtypes", [analytics_service_1.AnalyticsService,
+        mongoose_2.Model,
         mongoose_2.Model,
         mongoose_2.Model,
         mongoose_2.Model])

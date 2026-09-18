@@ -31,7 +31,7 @@ export class FilesController {
     return res.status(HttpStatus.OK).json({ success: true, message: 'File mocked-uploaded to bucket successfully' });
   }
 
-  @Get('mock-download/*')
+  @Get('mock-download/*path')
   @ApiOperation({ summary: 'Mock local download receiver' })
   async mockDownload(@Res() res: Response) {
     // Return a dummy empty PDF or byte stream

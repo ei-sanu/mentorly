@@ -133,7 +133,8 @@ export class MentorsService {
     const total = await this.mentorProfileModel.countDocuments(where);
     const mentors = await this.mentorProfileModel
       .find(where)
-      .populate('userId')
+      .select('-mentorEmbedding -__v')
+      .populate({ path: 'userId', select: 'firstName lastName avatar email' })
       .sort(sortObj)
       .skip(skip)
       .limit(limit)
@@ -156,7 +157,8 @@ export class MentorsService {
   async findOne(id: string): Promise<any> {
     const mentor = await this.mentorProfileModel
       .findById(id)
-      .populate('userId')
+      .select('-mentorEmbedding -__v')
+      .populate({ path: 'userId', select: 'firstName lastName avatar email' })
       .lean();
 
     if (!mentor) {
@@ -173,7 +175,8 @@ export class MentorsService {
   async getProfileByUserId(userId: string): Promise<any> {
     const profile = await this.mentorProfileModel
       .findOne({ userId })
-      .populate('userId')
+      .select('-mentorEmbedding -__v')
+      .populate({ path: 'userId', select: 'firstName lastName avatar email' })
       .lean();
 
     if (!profile) {

@@ -75,3 +75,10 @@ export class MentorProfile {
 }
 
 export const MentorProfileSchema = SchemaFactory.createForClass(MentorProfile);
+
+MentorProfileSchema.index({
+  verificationStatus: 1,
+  status: 1,
+  acceptingMentees: 1,
+  profileVisibility: 1,
+});

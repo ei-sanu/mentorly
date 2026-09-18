@@ -32,12 +32,29 @@ let RecommendationsService = class RecommendationsService {
                 redisOptions.tls = { rejectUnauthorized: false };
             }
             this.redis = process.env.REDIS_URL
-                ? new ioredis_1.default(process.env.REDIS_URL, { lazyConnect: true, ...redisOptions })
+                ? new ioredis_1.default(process.env.REDIS_URL, {
+                    lazyConnect: true,
+                    ...redisOptions,
+                    maxRetriesPerRequest: 1,
+                    enableOfflineQueue: false,
+                    connectTimeout: 5000,
+                    retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 2000)),
+                })
                 : new ioredis_1.default({
                     host: process.env.REDIS_HOST || 'localhost',
                     port: parseInt(process.env.REDIS_PORT || '6379', 10),
                     lazyConnect: true,
+                    maxRetriesPerRequest: 1,
+                    enableOfflineQueue: false,
+                    connectTimeout: 5000,
+                    retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 2000)),
                 });
+            this.redis.on('error', (err) => {
+                if (!this.redis.__loggedError) {
+                    this.redis.__loggedError = true;
+                    console.warn(`[recommendations] Redis unavailable: ${err.message}. Caching disabled.`);
+                }
+            });
             this.redis.connect().catch((err) => {
                 console.warn(`Redis connection failed for recommendations caching: ${err.message}`);
                 this.redis = null;
@@ -56,7 +73,8 @@ let RecommendationsService = class RecommendationsService {
                 status: mentor_profile_schema_1.MentorStatus.ACTIVE,
                 acceptingMentees: true,
             })
-                .populate('userId')
+                .select('-mentorEmbedding -__v')
+                .populate({ path: 'userId', select: 'firstName lastName avatar' })
                 .limit(5)
                 .lean();
             return mentors.map((m) => {
