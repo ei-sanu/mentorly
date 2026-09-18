@@ -11,7 +11,7 @@ async function bootstrap() {
     app.use((0, helmet_1.default)({
         contentSecurityPolicy: false,
     }));
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8080';
     app.enableCors({
         origin: (origin, callback) => {
             if (!origin || origin === frontendUrl || frontendUrl.split(',').includes(origin)) {
@@ -42,7 +42,7 @@ async function bootstrap() {
         .build();
     const document = swagger_1.SwaggerModule.createDocument(app, config);
     swagger_1.SwaggerModule.setup('api', app, document);
-    const port = process.env.PORT || 3001;
+    const port = process.env.PORT || 3000;
     await app.listen(port);
     console.log(`Server running on http://localhost:${port}`);
 }

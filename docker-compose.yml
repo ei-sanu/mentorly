@@ -24,13 +24,13 @@ services:
     container_name: mentorconnect-backend
     restart: always
     ports:
-      - "3001:3001"
+      - "3000:3000"
     environment:
-      - PORT=3001
+      - PORT=3000
       - DATABASE_URL=mongodb://mongodb:27017/mentorconnect
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - FRONTEND_URL=http://localhost:3000
+      - FRONTEND_URL=http://localhost:8080
     depends_on:
       - mongodb
       - redis

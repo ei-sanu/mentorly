@@ -223,9 +223,9 @@ cd backend
 npm run server
 ```
 
-- **Backend API Gateway**: `http://localhost:3001/api/v1`
-- **Swagger / OpenAPI Documentation**: `http://localhost:3001/api`
-- **Health Check**: `http://localhost:3001/api/v1/health`
+- **Backend API Gateway**: `http://localhost:3000/api/v1`
+- **Swagger / OpenAPI Documentation**: `http://localhost:3000/api`
+- **Health Check**: `http://localhost:3000/api/v1/health`
 
 To seed database with initial records:
 ```bash
@@ -249,7 +249,7 @@ npm install
 npm run dev
 ```
 
-- **Frontend Application**: `http://localhost:3000`
+- **Frontend Application**: `http://localhost:8080`
 - To build for production: `npm run build`
 - To preview production build: `npm run preview`
 

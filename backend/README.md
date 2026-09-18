@@ -62,7 +62,7 @@ Ensure you have the following installed on your system:
 
 | Variable | Description | Default |
 |---|---|---|
-| `PORT` | Local server port | `3001` |
+| `PORT` | Local server port | `3000` |
 | `DATABASE_URL` | MongoDB connection string | `mongodb://localhost:27017/mentorconnect` |
 | `REDIS_HOST` | Redis host for queues & cache | `localhost` |
 | `REDIS_PORT` | Redis port | `6379` |
@@ -88,7 +88,7 @@ Ensure you have the following installed on your system:
 
 * **Development Watch Mode**:
   ```bash
-  npm run start:dev
+  npm run server
   ```
 * **Production Build & Run**:
   ```bash
@@ -97,7 +97,7 @@ Ensure you have the following installed on your system:
   ```
 
 Swagger interactive API documentation will be available locally at:
-👉 **[http://localhost:3001/api](http://localhost:3001/api)**
+👉 **[http://localhost:3000/api](http://localhost:3000/api)**
 
 ---
 
@@ -152,6 +152,6 @@ To deploy the entire stack locally in docker containers (MongoDB, Redis, and API
 docker compose up --build
 ```
 This maps:
-* Backend API to `http://localhost:3001`
+* Backend API to `http://localhost:3000`
 * MongoDB to host port `27017`
 * Redis cache to host port `6379`
