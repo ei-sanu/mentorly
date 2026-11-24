@@ -1,12 +1,11 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Schema, HydratedDocument } from 'mongoose';
 
-export type IndustryDocument = Industry & Document;
+export type IndustryDocument = HydratedDocument<Industry>;
 
-@Schema({ timestamps: true })
-export class Industry {
-  @Prop({ required: true, unique: true, index: true })
+export interface Industry {
   name: string;
 }
 
-export const IndustrySchema = SchemaFactory.createForClass(Industry);
+export const IndustrySchema = new Schema<Industry>({
+  name: { required: true, unique: true, index: true, type: String },
+}, { timestamps: true });

@@ -1,7 +1,6 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { Schema, HydratedDocument, Types } from 'mongoose';
 
-export type GoalDocument = Goal & Document;
+export type GoalDocument = HydratedDocument<Goal>;
 
 export enum GoalStatus {
   NOT_STARTED = 'NOT_STARTED',
@@ -10,28 +9,22 @@ export enum GoalStatus {
   CANCELLED = 'CANCELLED',
 }
 
-@Schema({ timestamps: true })
-export class Goal {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Mentorship', required: true, index: true })
+export interface Goal {
   mentorshipId: Types.ObjectId;
-
-  @Prop({ required: true })
   title: string;
-
-  @Prop({ required: true })
   description: string;
-
-  @Prop({ type: Number, default: 0 })
   progress: number;
-
-  @Prop({ required: true, default: GoalStatus.NOT_STARTED, enum: GoalStatus, index: true })
   status: GoalStatus;
-
-  @Prop({ required: true, type: Date })
   targetDate: Date;
-
-  @Prop({ type: Date })
   completedAt?: Date;
 }
 
-export const GoalSchema = SchemaFactory.createForClass(Goal);
+export const GoalSchema = new Schema<Goal>({
+  mentorshipId: { type: Schema.Types.ObjectId, ref: 'Mentorship', required: true, index: true },
+  title: { required: true, type: String },
+  description: { required: true, type: String },
+  progress: { type: Number, default: 0 },
+  status: { required: true, default: GoalStatus.NOT_STARTED, enum: GoalStatus, index: true, type: String },
+  targetDate: { required: true, type: Date },
+  completedAt: { type: Date },
+}, { timestamps: true });

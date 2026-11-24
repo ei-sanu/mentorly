@@ -1,6 +1,5 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { NotFoundException, BadRequestException } from '../common/errors';
+import { UserModel, StudentProfileModel, MentorProfileModel, AlumniVerificationModel, NotificationModel, AuditLogModel } from '../database/models';
 import { User, UserDocument, Role, UserStatus } from '../database/schemas/user.schema';
 import { StudentProfile, StudentProfileDocument } from '../database/schemas/student-profile.schema';
 import { MentorProfile, MentorProfileDocument, VerificationStatus, MentorStatus } from '../database/schemas/mentor-profile.schema';
@@ -10,16 +9,13 @@ import { AuditLog, AuditLogDocument } from '../database/schemas/audit-log.schema
 import { UpdateUserDto } from './dto/update-user.dto';
 import { globalEventBus } from '../common/event-bus';
 
-@Injectable()
 export class UsersService {
-  constructor(
-    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
-    @InjectModel(StudentProfile.name) private readonly studentProfileModel: Model<StudentProfileDocument>,
-    @InjectModel(MentorProfile.name) private readonly mentorProfileModel: Model<MentorProfileDocument>,
-    @InjectModel(AlumniVerification.name) private readonly verificationModel: Model<AlumniVerificationDocument>,
-    @InjectModel(Notification.name) private readonly notificationModel: Model<NotificationDocument>,
-    @InjectModel(AuditLog.name) private readonly auditLogModel: Model<AuditLogDocument>,
-  ) {}
+  private readonly userModel = UserModel;
+  private readonly studentProfileModel = StudentProfileModel;
+  private readonly mentorProfileModel = MentorProfileModel;
+  private readonly verificationModel = AlumniVerificationModel;
+  private readonly notificationModel = NotificationModel;
+  private readonly auditLogModel = AuditLogModel;
 
   async findOne(id: string): Promise<any> {
     const user = await this.userModel.findById(id).lean();
@@ -126,7 +122,14 @@ export class UsersService {
       throw new NotFoundException(`User with ID ${userId} not found`);
     }
 
-    // Role safety validation: only allow legitimate self-service roles (STUDENT or MENTOR)
+    // Role safety validation: only allow legitimate self-service roles
+    // (STUDENT or MENTOR), and ONLY when explicitly supplied. A missing
+    // or unrecognised role is rejected — it must never silently fall
+    // back to STUDENT (the onboarding role gate always sends an
+    // explicitly chosen role, so a legitimate submit always has one).
+    if (data.role !== 'MENTOR' && data.role !== 'STUDENT') {
+      throw new BadRequestException('Please choose an account type (Student or Mentor) before submitting.');
+    }
     const targetRole = data.role === 'MENTOR' ? Role.MENTOR : Role.STUDENT;
 
     // Normalize Registration Number
@@ -203,7 +206,7 @@ export class UsersService {
           school: data.school,
           graduationYear: data.graduationYear,
           lpuEmail: data.lpuEmail,
-          proofDocumentUrl: data.proofDocumentUrl || 'https://picsum.photos/200/300',
+          proofDocumentUrl: data.proofDocumentUrl || '',
         },
         status: VerificationStatus.PENDING,
       });
@@ -246,3 +249,5 @@ export class UsersService {
     return { success: true, onboardingStatus: 'UNDER_REVIEW' };
   }
 }
+
+export const usersService = new UsersService();

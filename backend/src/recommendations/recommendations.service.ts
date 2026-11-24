@@ -1,59 +1,21 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { NotFoundException } from '../common/errors';
+import { StudentProfileModel, MentorProfileModel } from '../database/models';
+import { matchingService } from '../matching/matching.service';
+import { Types } from 'mongoose';
 import { StudentProfile, StudentProfileDocument } from '../database/schemas/student-profile.schema';
 import { MentorProfile, MentorProfileDocument, VerificationStatus, MentorStatus } from '../database/schemas/mentor-profile.schema';
-import { MatchingService } from '../matching/matching.service';
-import Redis from 'ioredis';
+import { inMemoryStore } from '../common/in-memory-store';
+import { llmRankingService } from './llm-ranking.service';
 
-@Injectable()
 export class RecommendationsService {
-  private redis: Redis | null = null;
+  // In-process cache (was Upstash Redis). Same get/setex/del/keys API,
+  // shared instance so invalidate*() busts exactly what get*() cached.
+  private redis = inMemoryStore;
 
-  constructor(
-    @InjectModel(StudentProfile.name)
-    private readonly studentProfileModel: Model<StudentProfileDocument>,
-    @InjectModel(MentorProfile.name)
-    private readonly mentorProfileModel: Model<MentorProfileDocument>,
-    private readonly matchingService: MatchingService,
-  ) {
-    try {
-      const redisOptions: any = {};
-      if (process.env.REDIS_URL && process.env.REDIS_URL.startsWith('rediss://')) {
-        redisOptions.tls = { rejectUnauthorized: false };
-      }
-      this.redis = process.env.REDIS_URL
-        ? new Redis(process.env.REDIS_URL, {
-            lazyConnect: true,
-            ...redisOptions,
-            maxRetriesPerRequest: 1,
-            enableOfflineQueue: false,
-            connectTimeout: 5000,
-            retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 2000)),
-          })
-        : new Redis({
-            host: process.env.REDIS_HOST || 'localhost',
-            port: parseInt(process.env.REDIS_PORT || '6379', 10),
-            lazyConnect: true,
-            maxRetriesPerRequest: 1,
-            enableOfflineQueue: false,
-            connectTimeout: 5000,
-            retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 2000)),
-          });
-      this.redis.on('error', (err) => {
-        if (!(this.redis as any).__loggedError) {
-          (this.redis as any).__loggedError = true;
-          console.warn(`[recommendations] Redis unavailable: ${err.message}. Caching disabled.`);
-        }
-      });
-      this.redis.connect().catch((err) => {
-        console.warn(`Redis connection failed for recommendations caching: ${err.message}`);
-        this.redis = null;
-      });
-    } catch (err) {
-      console.warn(`Failed to initialize Redis in RecommendationsService: ${err.message}`);
-    }
-  }
+  private readonly studentProfileModel = StudentProfileModel;
+  private readonly mentorProfileModel = MentorProfileModel;
+  private get matchingService() { return matchingService; }
+  private get llmRankingService() { return llmRankingService; }
 
   async getRecommendedMentors(userId: string) {
     const studentProfile = await this.studentProfileModel.findOne({ userId: new Types.ObjectId(userId) }).lean();
@@ -73,6 +35,32 @@ export class RecommendationsService {
 
       return mentors.map((m: any) => {
         const user = m.userId || {};
+        // No student profile exists, so no real match can be computed:
+        // matchScore 80 stays a documented placeholder (it cannot be a
+        // real score with nothing to match against) and no LLM call is
+        // made (there are no student fields to ground a ranking in).
+        // (2026-11-20, Item 1) These items deliberately carry NO
+        // scoreBreakdown: a breakdown of zeros would sum to 0, not 80,
+        // and inventing component points for a placeholder score would
+        // be fake data. The frontend tooltip must hide/skip when
+        // scoreBreakdown is absent.
+        // What IS improved honestly: reasons now come from the mentor's
+        // own real fields instead of the generic pair, and the item is
+        // labelled FALLBACK with llmUsed: false. The User doc carries
+        // only identity fields (name/email/role) — nothing that grounds
+        // a match reason — so no student-derived reason is invented.
+        const noProfileReasons: string[] = [];
+        if (m.currentCompany) noProfileReasons.push(`Currently working at ${m.currentCompany}`);
+        if (Array.isArray(m.expertise) && m.expertise.length > 0) {
+          noProfileReasons.push(`Expertise in ${m.expertise.slice(0, 2).join(', ')}`);
+        }
+        if (m.yearsOfExperience >= 5) {
+          noProfileReasons.push(`Senior mentorship perspective (${m.yearsOfExperience} years of experience)`);
+        }
+        if (noProfileReasons.length < 2) {
+          noProfileReasons.push('Currently accepting mentees');
+          noProfileReasons.push('Alumni of LPU');
+        }
         return {
           id: m._id.toString(),
           userId: user._id?.toString() || m.userId?.toString(),
@@ -89,7 +77,9 @@ export class RecommendationsService {
           capacity: { max: m.maxCapacity, current: m.currentMenteesCount },
           acceptingMentees: m.acceptingMentees,
           matchScore: 80,
-          matchReasons: ['Verified Mentor', 'Alumni of LPU'],
+          matchReasons: noProfileReasons,
+          matchType: 'FALLBACK',
+          llmUsed: false,
         };
       });
     }
@@ -108,13 +98,26 @@ export class RecommendationsService {
       }
     }
 
-    const recommendations = await this.matchingService.calculateRecommendation(studentProfileIdStr);
+    const baseRecommendations = await this.matchingService.calculateRecommendation(studentProfileIdStr);
+
+    // Phase 2 (2026-11-19): LLM re-ranking at the COMPUTE step (cache miss
+    // only — never per HTTP request). rankAndApply() falls back to the base
+    // list on any LLM failure, so `recommendations` is always safe to
+    // serve and cache. Cache decision: the LLM-ranked list is stored under
+    // the EXISTING key with its honest per-item labels (matchType 'LLM' /
+    // llmUsed / llmError) attached, so a cached entry always describes how
+    // it was computed; a later LLM outage cannot mislabel anything — the
+    // next cache miss simply recomputes under the then-current LLM state.
+    // getMentorMatchDetails() deliberately does NOT call the LLM: it
+    // returns a single mentor, and ranking one candidate is meaningless.
+    const ranked = await this.llmRankingService.rankAndApply(studentProfile, baseRecommendations);
+    const recommendations = ranked.recommendations;
 
     if (this.redis) {
       try {
         await this.redis.setex(cacheKey, 3600, JSON.stringify(recommendations));
       } catch (err) {
-        console.warn(`Failed to cache recommendations in Redis: ${err.message}`);
+        console.warn(`Failed to cache recommendations: ${err.message}`);
       }
     }
 
@@ -159,3 +162,5 @@ export class RecommendationsService {
     }
   }
 }
+
+export const recommendationsService = new RecommendationsService();

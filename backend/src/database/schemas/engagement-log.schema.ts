@@ -1,7 +1,6 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { Schema, HydratedDocument, Types } from 'mongoose';
 
-export type EngagementLogDocument = EngagementLog & Document;
+export type EngagementLogDocument = HydratedDocument<EngagementLog>;
 
 export enum RiskLevel {
   HEALTHY = 'HEALTHY',
@@ -10,37 +9,28 @@ export enum RiskLevel {
   INACTIVE = 'INACTIVE',
 }
 
-@Schema({ timestamps: true })
-export class EngagementLog {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Mentorship', required: true, unique: true, index: true })
+export interface EngagementLog {
   mentorshipId: Types.ObjectId;
-
-  @Prop({ required: true, type: Date, default: Date.now })
   lastInteractionDate: Date;
-
-  @Prop({ type: Number, default: 0 })
   sessionsCompletedCount: number;
-
-  @Prop({ type: Number, default: 0 })
   sessionsMissedCount: number;
-
-  @Prop({ type: Number, default: 0 })
   goalsCompletedCount: number;
-
-  @Prop({ type: Number, default: 0 })
   actionItemsCompletedCount: number;
-
-  @Prop({ type: Number, default: 0 })
   daysSinceLastInteraction: number;
-
-  @Prop({ type: Number, default: 0.0 })
   riskScore: number;
-
-  @Prop({ required: true, default: RiskLevel.HEALTHY, enum: RiskLevel, index: true })
   riskLevel: RiskLevel;
-
-  @Prop({ type: [String], default: [] })
   reasons: string[];
 }
 
-export const EngagementLogSchema = SchemaFactory.createForClass(EngagementLog);
+export const EngagementLogSchema = new Schema<EngagementLog>({
+  mentorshipId: { type: Schema.Types.ObjectId, ref: 'Mentorship', required: true, unique: true, index: true },
+  lastInteractionDate: { required: true, type: Date, default: Date.now },
+  sessionsCompletedCount: { type: Number, default: 0 },
+  sessionsMissedCount: { type: Number, default: 0 },
+  goalsCompletedCount: { type: Number, default: 0 },
+  actionItemsCompletedCount: { type: Number, default: 0 },
+  daysSinceLastInteraction: { type: Number, default: 0 },
+  riskScore: { type: Number, default: 0.0 },
+  riskLevel: { required: true, default: RiskLevel.HEALTHY, enum: RiskLevel, index: true, type: String },
+  reasons: { type: [String], default: [] },
+}, { timestamps: true });

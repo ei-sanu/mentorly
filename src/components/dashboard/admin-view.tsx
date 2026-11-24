@@ -71,7 +71,7 @@ interface AdminMetrics {
 }
 
 const ACTIVITY_ICON_STYLES: Record<string, string> = {
-  VERIFICATION: 'bg-orange-50 text-lpu-orange',
+  VERIFICATION: 'bg-neutral-100 text-neutral-900',
   REQUEST: 'bg-blue-50 text-blue-600',
   USER_JOINED: 'bg-emerald-50 text-emerald-600',
 };
@@ -230,7 +230,7 @@ export function AdminView() {
                 </div>
                 {row.pct !== null && (
                   <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-lpu-orange rounded-full transition-all" style={{ width: `${Math.min(100, row.pct)}%` }} />
+                    <div className="h-full bg-neutral-900 rounded-full transition-all" style={{ width: `${Math.min(100, row.pct)}%` }} />
                   </div>
                 )}
               </div>

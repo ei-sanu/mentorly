@@ -1,0 +1,14 @@
+# dependencies
+node_modules/
+
+# next.js build output
+.next/
+out/
+
+# env files — NEVER commit real values. .env.example (names + placeholders) is committed.
+.env*.local
+.env
+
+# misc
+.DS_Store
+*.pem

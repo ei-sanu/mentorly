@@ -1,40 +1,33 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { Schema, HydratedDocument, Types } from 'mongoose';
 
-export type FeedbackDocument = Feedback & Document;
+export type FeedbackDocument = HydratedDocument<Feedback>;
 
-@Schema({ timestamps: true })
-export class Feedback {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Mentorship', required: true, index: true })
+export interface Feedback {
   mentorshipId: Types.ObjectId;
-
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true, index: true })
   submitterId: Types.ObjectId;
-
-  @Prop({ required: true, type: Number })
   rating: number;
-
-  @Prop()
   comments?: string;
 
   // Student specific feedback fields
-  @Prop({ type: Number })
   usefulness?: number;
-
-  @Prop()
   learningOutcome?: string;
 
   // Mentor specific feedback fields
-  @Prop({ type: Number })
   preparedness?: number;
-
-  @Prop({ type: Number })
   progressScore?: number;
-
-  @Prop({ type: Number })
   engagement?: number;
 }
 
-export const FeedbackSchema = SchemaFactory.createForClass(Feedback);
+export const FeedbackSchema = new Schema<Feedback>({
+  mentorshipId: { type: Schema.Types.ObjectId, ref: 'Mentorship', required: true, index: true },
+  submitterId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  rating: { required: true, type: Number },
+  comments: { type: String },
+  usefulness: { type: Number },
+  learningOutcome: { type: String },
+  preparedness: { type: Number },
+  progressScore: { type: Number },
+  engagement: { type: Number },
+}, { timestamps: true });
 // Ensure single feedback per participant on a mentorship
 FeedbackSchema.index({ mentorshipId: 1, submitterId: 1 }, { unique: true });

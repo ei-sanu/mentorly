@@ -1,17 +1,15 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Logger } from '../common/logger';
+import { UserModel } from '../database/models';
 import { User, UserDocument } from '../database/schemas/user.schema';
 import { Resend } from 'resend';
 
-@Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private resend: Resend | null = null;
 
-  constructor(
-    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
-  ) {
+  private readonly userModel = UserModel;
+
+  constructor() {
     const apiKey = process.env.RESEND_API_KEY;
     if (apiKey && apiKey !== 're_mockkey' && !apiKey.startsWith('re_test')) {
       this.resend = new Resend(apiKey);
@@ -60,3 +58,5 @@ export class EmailService {
     }
   }
 }
+
+export const emailService = new EmailService();

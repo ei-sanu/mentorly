@@ -281,7 +281,7 @@ export function PlacementOfficerView() {
             <select
               value={industryFilter}
               onChange={(e) => { setIndustryFilter(e.target.value); setPage(1); }}
-              className="h-10 pl-4 pr-8 rounded-xl border border-lpu-border bg-white text-sm cursor-pointer focus:ring-2 focus:ring-lpu-orange focus:outline-none"
+              className="h-10 pl-4 pr-8 rounded-xl border border-lpu-border bg-white text-sm cursor-pointer focus:ring-2 focus:ring-neutral-900 focus:outline-none"
             >
               <option value="">All industries</option>
               {(s?.industryFilters || []).map((f) => (
@@ -296,7 +296,7 @@ export function PlacementOfficerView() {
                 placeholder="Search name, role or skill…"
                 value={searchInput}
                 onChange={(e) => { setSearchInput(e.target.value); setPage(1); }}
-                className="w-full h-10 pl-9 pr-4 rounded-xl border border-lpu-border text-sm focus:ring-2 focus:ring-lpu-orange focus:outline-none"
+                className="w-full h-10 pl-9 pr-4 rounded-xl border border-lpu-border text-sm focus:ring-2 focus:ring-neutral-900 focus:outline-none"
               />
             </div>
           </div>
@@ -354,7 +354,7 @@ export function PlacementOfficerView() {
                         <td className="py-3 pr-4 w-32">
                           <div className="flex items-center gap-2">
                             <div className="h-2 flex-1 bg-gray-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-lpu-orange rounded-full" style={{ width: `${row.profileCompletion}%` }} />
+                              <div className="h-full bg-neutral-900 rounded-full" style={{ width: `${row.profileCompletion}%` }} />
                             </div>
                             <span className="text-xs text-lpu-text-secondary w-8">{row.profileCompletion}%</span>
                           </div>
@@ -400,7 +400,7 @@ export function PlacementOfficerView() {
               {d.recentStudents.map((student) => (
                 <div key={student.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
                   <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-full bg-orange-50 border border-orange-100 flex items-center justify-center text-lpu-orange font-bold text-sm">
+                    <div className="h-9 w-9 rounded-full bg-neutral-100 border border-neutral-200 flex items-center justify-center text-neutral-900 font-bold text-sm">
                       {(student.name || '?')[0].toUpperCase()}
                     </div>
                     <div>

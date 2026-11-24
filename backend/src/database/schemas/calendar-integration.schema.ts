@@ -1,29 +1,23 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { Schema, HydratedDocument, Types } from 'mongoose';
 
-export type CalendarIntegrationDocument = CalendarIntegration & Document;
+export type CalendarIntegrationDocument = HydratedDocument<CalendarIntegration>;
 
-@Schema({ timestamps: true })
-export class CalendarIntegration {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true, index: true })
+export interface CalendarIntegration {
   userId: Types.ObjectId;
-
-  @Prop({ required: true })
   provider: string; // "GOOGLE" | "MICROSOFT"
-
-  @Prop({ required: true })
   accessToken: string; // encrypted
-
-  @Prop({ required: true })
   refreshToken: string; // encrypted
-
-  @Prop({ required: true, type: Date })
   expiryDate: Date;
-
-  @Prop({ type: [String], default: [] })
   scopes: string[];
 }
 
-export const CalendarIntegrationSchema = SchemaFactory.createForClass(CalendarIntegration);
+export const CalendarIntegrationSchema = new Schema<CalendarIntegration>({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  provider: { required: true, type: String },
+  accessToken: { required: true, type: String },
+  refreshToken: { required: true, type: String },
+  expiryDate: { required: true, type: Date },
+  scopes: { type: [String], default: [] },
+}, { timestamps: true });
 // Single provider integration per user
 CalendarIntegrationSchema.index({ userId: 1, provider: 1 }, { unique: true });

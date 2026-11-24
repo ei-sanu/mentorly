@@ -1,63 +1,61 @@
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { AppModule } from './app.module';
-import helmet from 'helmet';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import 'reflect-metadata';
+import 'dotenv/config';
+import http from 'http';
+import { Server as SocketIOServer } from 'socket.io';
+import { createApp } from './app';
+import { connectDatabase } from './database/models';
+import { attachChatSocket } from './sockets/chat.socket';
+import { attachDashboardSocket } from './sockets/dashboard.socket';
+import { jobsService } from './jobs/jobs.service';
+import { Logger } from './common/logger';
+
+const logger = new Logger('Bootstrap');
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const env = process.env.NODE_ENV || 'development';
+  logger.log(`Starting Mentorly API (env=${env})...`);
 
-  // Security Headers
-  app.use(helmet({
-    contentSecurityPolicy: false, // Turn off CSP for Swagger UI
-  }));
+  await connectDatabase();
 
-  // CORS Configuration
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8080';
-  app.enableCors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, postman) or matching whitelist
-      if (!origin || origin === frontendUrl || frontendUrl.split(',').includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
+  const app = createApp();
+  const server = http.createServer(app);
+
+  // Real-time gateways (chat + dashboard namespaces)
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8080,http://localhost:8081';
+  const io = new SocketIOServer(server, {
+    cors: {
+      origin: frontendUrl.split(','),
+      credentials: true,
     },
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    credentials: true,
   });
+  attachChatSocket(io);
+  attachDashboardSocket(io);
+  logger.log(`Socket.IO ready (namespaces: /chat, /dashboard) — frontend: ${frontendUrl}`);
 
-  // Global Prefix
-  app.setGlobalPrefix('api/v1');
-
-  // Global Validation Pipe
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      forbidNonWhitelisted: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
-    }),
-  );
-
-  // Global Exception Filter
-  app.useGlobalFilters(new HttpExceptionFilter());
-
-  // Swagger Documentation Setup
-  const config = new DocumentBuilder()
-    .setTitle('LPU MentorConnect API')
-    .setDescription('Backend APIs for Lovely Professional University Alumni Mentorship Network')
-    .setVersion('1.0.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+  // Background queues/workers (in-process, no Redis) + scheduled jobs
+  await jobsService.onModuleInit();
 
   const port = process.env.PORT || 3000;
-  await app.listen(port);
-  console.log(`Server running on http://localhost:${port}`);
+  server.listen(port, () => {
+    logger.log(`Server running on http://localhost:${port}`);
+    logger.log(`API base: http://localhost:${port}/api/v1 — docs: http://localhost:${port}/api`);
+  });
+
+  // Clean shutdown so Ctrl+C in the terminal leaves a readable last line
+  const shutdown = (signal: string) => {
+    logger.warn(`Received ${signal} — shutting down...`);
+    server.close(() => {
+      logger.log('Server stopped');
+      process.exit(0);
+    });
+    setTimeout(() => process.exit(0), 5000).unref();
+  };
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
-bootstrap();
+
+bootstrap().catch((err) => {
+  logger.error('Failed to start server:');
+  console.error(err);
+  process.exit(1);
+});

@@ -1,0 +1,236 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Sliders, RefreshCw, AlertCircle, Save, RotateCcw } from 'lucide-react';
+import { adminService } from '@/services/api';
+import { useRoleGuard } from '@/lib/use-role-guard';
+import { PageHeader, PageLoader } from '@/components/dashboard/page-primitives';
+
+const DEFAULT_WEIGHTS = {
+  semanticSimilarity: 35,
+  careerGoal: 20,
+  expertise: 15,
+  industry: 10,
+  targetRole: 10,
+  availability: 10,
+};
+
+const LABELS: Record<string, string> = {
+  semanticSimilarity: 'Semantic Similarity (AI)',
+  careerGoal: 'Career Goal Match',
+  expertise: 'Expertise Match',
+  industry: 'Industry Match',
+  targetRole: 'Target Role Match',
+  availability: 'Availability Match',
+};
+
+export default function AdminMatchingConfigPage() {
+  const { allowed } = useRoleGuard(['ADMIN']);
+  const [weights, setWeights] = useState<Record<string, number>>(DEFAULT_WEIGHTS);
+  const [original, setOriginal] = useState<Record<string, number>>(DEFAULT_WEIGHTS);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [llmStatus, setLlmStatus] = useState<{ model: string; enabled: boolean; reachable: boolean; baseUrl?: string } | null>(null);
+
+  const load = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await adminService.getMatchingConfig();
+      const w = (data && (data.value || data.weights || data)) as Record<string, number>;
+      if (w && typeof w === 'object') {
+        const merged = { ...DEFAULT_WEIGHTS, ...w };
+        setWeights(merged);
+        setOriginal(merged);
+      }
+      // LLM status is best-effort: if the endpoint is missing (backend not
+      // restarted after deploy) the weights above still load and the card
+      // below shows its fallback line.
+      try {
+        const status = await adminService.getLlmStatus();
+        const s = (status && ((status as any).data || status)) as { model: string; enabled: boolean; reachable: boolean; baseUrl?: string };
+        if (s && typeof s === 'object' && typeof s.model === 'string') setLlmStatus(s);
+        else setLlmStatus(null);
+      } catch {
+        setLlmStatus(null);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to load matching configuration.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (allowed) load();
+  }, [allowed]);
+
+  if (!allowed) return <PageLoader message="Verifying access…" />;
+
+  const total = Object.values(weights).reduce((acc, v) => acc + (Number(v) || 0), 0);
+  const dirty = JSON.stringify(weights) !== JSON.stringify(original);
+
+  const handleChange = (key: string, value: string) => {
+    const n = parseInt(value, 10);
+    setWeights((prev) => ({ ...prev, [key]: isNaN(n) ? 0 : Math.max(0, Math.min(100, n)) }));
+  };
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      setError(null);
+      setSuccess(null);
+      await adminService.updateMatchingConfig(weights);
+      setOriginal(weights);
+      setSuccess('Matching configuration saved successfully.');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to save configuration.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReset = () => setWeights(original);
+  const handleDefaults = () => setWeights(DEFAULT_WEIGHTS);
+
+  return (
+    <div className="space-y-6 pb-10">
+      <PageHeader
+        title="AI Matching Configuration"
+        description="Tune the weight of each signal in the mentor–mentee matching engine."
+        icon={Sliders}
+        actions={
+          <>
+            <Button variant="outline" onClick={load} size="sm" className="rounded-xl">
+              <RefreshCw className="h-4 w-4 mr-2" /> Reload
+            </Button>
+            <Button onClick={handleSave} disabled={!dirty || saving} className="bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl" size="sm">
+              <Save className="h-4 w-4 mr-2" />
+              {saving ? 'Saving…' : 'Save Changes'}
+            </Button>
+          </>
+        }
+      />
+
+      {error && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-red-700">
+              <AlertCircle className="h-4 w-4" />
+              <span className="text-sm">{error}</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {success && (
+        <Card className="border-emerald-200 bg-emerald-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2 text-emerald-700">
+              <span className="text-sm">{success}</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {loading ? (
+        <PageLoader message="Loading configuration…" />
+      ) : (
+        <>
+        <Card>
+          <CardHeader className="flex flex-col md:flex-row md:items-center justify-between space-y-4 md:space-y-0">
+            <div>
+              <CardTitle>Match Weights</CardTitle>
+              <CardDescription>Total weight: {total} (100 recommended)</CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleReset} disabled={!dirty} className="rounded-xl">
+                <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Reset
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleDefaults} className="rounded-xl">
+                <RotateCcw className="h-3.5 w-3.5 mr-1.5" /> Restore Defaults
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {Object.keys(weights).map((key) => (
+              <div key={key} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-700">{LABELS[key] || key}</label>
+                  <Badge variant="outline" className="font-mono">{weights[key]}</Badge>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={weights[key]}
+                    onChange={(e) => handleChange(key, e.target.value)}
+                    className="flex-1 accent-neutral-900"
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={weights[key]}
+                    onChange={(e) => handleChange(key, e.target.value)}
+                    className="w-20 h-9 px-3 rounded-lg border border-lpu-border text-sm focus:ring-2 focus:ring-neutral-900 focus:outline-none"
+                  />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>LLM Ranking Status</CardTitle>
+            <CardDescription>Local Ollama model used to re-rank and explain matches.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {llmStatus ? (
+              <div className="space-y-2 text-sm">
+                {/* "Mentorly" is the engine's display name only — the model id
+                    below is the real OLLAMA_MODEL / endpoint `model` value,
+                    unchanged. */}
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-gray-700">Model</span>
+                  <span className="text-right">
+                    <span className="block text-sm font-medium text-neutral-900">Mentorly</span>
+                    <span className="block font-mono text-xs text-gray-500">Model: {llmStatus.model}</span>
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-700">LLM ranking</span>
+                  <Badge variant="outline">{llmStatus.enabled ? 'Enabled' : 'Disabled'}</Badge>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-700">Ollama</span>
+                  <Badge variant="outline">{llmStatus.reachable ? 'Reachable' : 'Unreachable'}</Badge>
+                </div>
+                {llmStatus.baseUrl && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-700">Server</span>
+                    <span className="font-mono text-xs text-gray-500">{llmStatus.baseUrl}</span>
+                  </div>
+                )}
+                {!llmStatus.reachable && (
+                  <p className="text-xs text-lpu-text-secondary pt-1">Ollama is not responding — check that `ollama serve` is running.</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-lpu-text-secondary">LLM status unavailable — the backend may need a restart after deploy.</p>
+            )}
+          </CardContent>
+        </Card>
+        </>
+      )}
+    </div>
+  );
+}

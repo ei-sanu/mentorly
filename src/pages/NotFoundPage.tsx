@@ -1,111 +1,108 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+/**
+ * Mentorly — 404 page (2026-11-11 redesign).
+ *
+ * Replaces the 2026-11-10 Gireffe-style page ("Oh noo!" + stick-figure
+ * illustration on a peach background). That design read as odd and
+ * awkward in the app: the huge headline shouted, the busy line drawing
+ * crowded the page, the peach background clashed with the rest of the
+ * site, and — worst — an /app/* URL showed the LANDING nav (How it
+ * works / Benefits / Stories / FAQ), which does not belong on an app
+ * error page at all.
+ *
+ * WHAT IT IS NOW: the same calm minimalism as the rest of Mentorly.
+ * Light grey page (#f2f2f2, the site standard — no peach), one clean
+ * sans font, generous balanced spacing, no illustration. A minimal top
+ * bar with just the Mentorly wordmark and a single "Go home" link.
+ * Centred content: a small "404" label, a short headline in a sensible
+ * size, one line of subcopy, and two clear actions — "Go back" (black
+ * pill, primary) plus a context-aware second action: "Go to dashboard"
+ * when signed in, "Go home" when signed out.
+ *
+ * FUNCTIONAL: still the catch-all for unknown routes (path="*" in
+ * App.tsx), still reachable directly (e.g. /some-bogus-url), "Go back"
+ * uses history.back() and falls back to "/" when there is no previous
+ * page in this tab. No API calls on this page.
+ */
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/lib/mock-auth';
-import { LpuLogo } from '@/components/ui/lpu-logo';
-import { Button } from '@/components/ui/button';
-import { FileQuestion, ArrowLeft, LayoutDashboard, Home, LogIn } from 'lucide-react';
 
 export default function NotFound() {
-  const router = useRouter();
-  const { isSignedIn, user, isLoaded } = useAuth();
+  const navigate = useNavigate();
+  const { isSignedIn, user } = useAuth();
 
-  const handleBack = () => {
-    if (typeof window !== 'undefined' && window.history.length > 1) {
-      router.back();
-    } else {
-      router.push('/');
-    }
+  const goBack = () => {
+    if (window.history.length > 1) navigate(-1);
+    else navigate('/');
   };
 
-  const getDashboardPath = () => {
-    if (user?.role) {
-      return `/app/${user.role.toLowerCase().replace('_', '-')}/dashboard`;
-    }
-    return '/login';
-  };
+  // Every role has a dashboard route (/app/<role>/dashboard); only
+  // student and mentor have a profile route, so the second action is
+  // always the dashboard for signed-in users.
+  const dashboardPath = user
+    ? `/app/${user.role.toLowerCase().replace('_', '-')}/dashboard`
+    : '/';
 
   return (
-    <div className="min-h-screen bg-lpu-bg flex flex-col items-center justify-center p-6 md:p-12 relative overflow-hidden">
-      {/* Background Decorative Gradients */}
-      <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-lpu-orange/5 blur-3xl -z-10" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-blue-500/5 blur-3xl -z-10" />
+    <main className="flex min-h-screen flex-col bg-[#f2f2f2] px-4 sm:px-8">
+      {/* Minimal top bar — wordmark only, no landing nav. */}
+      <header className="mx-auto flex w-full max-w-[1120px] items-center justify-between py-6">
+        <Link
+          to="/"
+          aria-label="Mentorly — home"
+          className="text-[22px] font-semibold tracking-[-0.02em] text-[#111111]"
+        >
+          Mentorly
+        </Link>
+        <Link
+          to="/"
+          className="text-[15px] font-medium text-[#555555] hover:text-[#111111] hover:underline hover:underline-offset-4"
+        >
+          Go home
+        </Link>
+      </header>
 
-      {/* Main Container */}
-      <div className="max-w-md w-full text-center space-y-8 bg-white p-8 md:p-12 rounded-3xl border border-lpu-border shadow-sm">
-        {/* LPU Logo */}
-        <div className="flex justify-center mb-6">
-          <Link href="/">
-            <LpuLogo className="h-12 w-auto transition-opacity hover:opacity-90" />
-          </Link>
-        </div>
-
-        {/* Visual Element */}
-        <div className="relative flex justify-center mb-4">
-          <div className="h-24 w-24 rounded-2xl bg-orange-50 border border-orange-100 flex items-center justify-center text-lpu-orange animate-bounce">
-            <FileQuestion className="h-12 w-12" />
-          </div>
-          <span className="absolute -top-2 -right-2 bg-lpu-orange text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm">
-            404
-          </span>
-        </div>
-
-        {/* Text Details */}
-        <div className="space-y-3">
-          <h1 className="text-3xl font-extrabold text-lpu-text-primary tracking-tight">
-            Page Not Found
-          </h1>
-          <p className="text-sm text-lpu-text-secondary leading-relaxed">
-            Oops! The link might be broken, or the page has been moved. Verify the URL or navigate back using the actions below.
-          </p>
-        </div>
-
-        {/* Navigation Actions */}
-        <div className="flex flex-col gap-3 pt-4 border-t border-gray-100">
-          {!isLoaded ? (
-            <div className="h-11 w-full bg-gray-100 animate-pulse rounded-xl" />
-          ) : isSignedIn ? (
-            <Button
-              onClick={() => router.push(getDashboardPath())}
-              className="w-full h-11 font-bold bg-lpu-orange hover:bg-lpu-orange-hover text-white rounded-xl flex items-center justify-center gap-2"
+      {/* Centred content — calm, one column, nothing shouting. */}
+      <div className="mx-auto flex w-full max-w-[560px] flex-1 flex-col items-center justify-center px-4 py-16 text-center">
+        <p className="text-[13px] font-medium uppercase tracking-[0.2em] text-[#999999]">
+          404 — Page not found
+        </p>
+        <h1 className="mt-4 text-[36px] font-semibold leading-tight tracking-[-0.02em] text-[#111111] sm:text-[40px]">
+          This page isn&rsquo;t here.
+        </h1>
+        <p className="mt-3 max-w-[420px] text-[15px] leading-[1.7] text-[#555555]">
+          The link you followed doesn&rsquo;t exist, or the page was moved.
+        </p>
+        <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
+          <button
+            type="button"
+            onClick={goBack}
+            className="inline-flex items-center gap-2 rounded-full bg-[#0a0a0a] px-6 py-3 text-[15px] font-medium text-white transition-colors hover:bg-[#262626] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-black"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Go back
+          </button>
+          {isSignedIn ? (
+            <Link
+              to={dashboardPath}
+              className="inline-flex items-center gap-1.5 rounded-full border border-[#d4d4d4] bg-white px-6 py-3 text-[15px] font-medium text-[#111111] transition-colors hover:border-[#111111]"
             >
-              <LayoutDashboard className="h-4 w-4" /> Go to Dashboard
-            </Button>
-          ) : (
-            <Button
-              onClick={() => router.push('/login')}
-              className="w-full h-11 font-bold bg-lpu-orange hover:bg-lpu-orange-hover text-white rounded-xl flex items-center justify-center gap-2"
-            >
-              <LogIn className="h-4 w-4" /> Sign In
-            </Button>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <Button
-              variant="outline"
-              onClick={handleBack}
-              className="h-11 border-lpu-border hover:bg-gray-50 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5"
-            >
-              <ArrowLeft className="h-4 w-4" /> Go Back
-            </Button>
-
-            <Link href="/" className="w-full">
-              <Button
-                variant="outline"
-                className="w-full h-11 border-lpu-border hover:bg-gray-50 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5"
-              >
-                <Home className="h-4 w-4" /> Home
-              </Button>
+              Go to dashboard
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
-          </div>
+          ) : (
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1.5 text-[15px] font-medium text-[#111111] underline underline-offset-4 hover:text-[#555555]"
+            >
+              Go home
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          )}
         </div>
       </div>
-
-      {/* Footer Info */}
-      <div className="mt-8 text-center text-xs text-lpu-text-muted">
-        Need assistance? Please contact university support.
-      </div>
-    </div>
+    </main>
   );
 }

@@ -1,7 +1,6 @@
-import { Injectable, Logger, BadRequestException, InternalServerErrorException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { BadRequestException, InternalServerErrorException } from '../../common/errors';
+import { Logger } from '../../common/logger';
 
-@Injectable()
 export class Msg91Service {
   private readonly logger = new Logger(Msg91Service.name);
   
@@ -14,15 +13,15 @@ export class Msg91Service {
   private readonly apiBaseUrl: string;
   private readonly devOtp: string;
 
-  constructor(private readonly configService: ConfigService) {
-    this.isEnabled = this.configService.get<string>('MSG91_ENABLED') !== 'false';
-    this.authKey = this.configService.get<string>('MSG91_AUTH_KEY') || '';
-    this.widgetId = this.configService.get<string>('MSG91_WIDGET_ID') || '';
-    this.templateId = this.configService.get<string>('MSG91_OTP_TEMPLATE_ID') || '';
-    this.senderId = this.configService.get<string>('MSG91_SENDER_ID') || '';
-    this.expirySeconds = parseInt(this.configService.get<string>('MSG91_OTP_EXPIRY_SECONDS') || '300', 10);
-    this.apiBaseUrl = this.configService.get<string>('MSG91_API_BASE_URL') || 'https://control.msg91.com/api/v5';
-    this.devOtp = this.configService.get<string>('DEV_PHONE_OTP') || '123456';
+  constructor() {
+    this.isEnabled = process.env.MSG91_ENABLED !== 'false';
+    this.authKey = process.env.MSG91_AUTH_KEY || '';
+    this.widgetId = process.env.MSG91_WIDGET_ID || '';
+    this.templateId = process.env.MSG91_OTP_TEMPLATE_ID || '';
+    this.senderId = process.env.MSG91_SENDER_ID || '';
+    this.expirySeconds = parseInt(process.env.MSG91_OTP_EXPIRY_SECONDS || '300', 10);
+    this.apiBaseUrl = process.env.MSG91_API_BASE_URL || 'https://control.msg91.com/api/v5';
+    this.devOtp = process.env.DEV_PHONE_OTP || '123456';
 
     if (!this.isEnabled) {
       this.logger.warn('⚠️ MSG91 is DISABLED. Development OTP bypass is active.');
@@ -305,3 +304,5 @@ export class Msg91Service {
     }
   }
 }
+
+export const msg91Service = new Msg91Service();

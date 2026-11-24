@@ -1,260 +1,142 @@
-# LPU MentorConnect
-## Alumni Mentorship & Career Network
+# Mentorly
 
-**Project Description & Technology Overview**
+> Find the right alumni mentor, request mentorship, and manage the whole journey in one place.
 
-| Property | Value |
-|---|---|
-| **Project Type** | Full-stack web platform |
-| **Frontend** | React + TypeScript (Vite) |
-| **Backend** | Node.js + Express.js + TypeScript |
-| **Database** | MongoDB 7+ with Mongoose |
-| **Supporting Technologies** | Redis, BullMQ, Socket.IO, Clerk, Mentor Matching, Google Calendar, MSG91 |
+Mentorly connects students with verified alumni mentors. Students discover mentors through AI-assisted matching, send mentorship requests, and collaborate in a shared workspace with sessions, chat, and scheduling. Mentors manage requests and mentees, and administrators verify alumni and keep the platform running.
 
----
+## Features
 
-## 1. Project Overview
+### For students
 
-**LPU MentorConnect** is a platform designed to make it easier for Lovely Professional University (LPU) students to connect with experienced alumni who can guide them in their academic, professional, and career journey. Instead of students searching randomly for someone suitable, the system uses their profile, career goals, skills, interests, preferred roles, industries, and mentoring needs to suggest relevant alumni mentors.
+- **AI-assisted mentor discovery** — a deterministic weighted scorer ranks mentors on skills, career goals, expertise, industry, target role, and availability, and a local language model re-ranks the top candidates and explains each match.
+- **Mentorship requests** — send a request with a goal and a message; the mentor approves or declines. Requests can be refined by AI into a clear summary with focus areas.
+- **Mentorship workspace** — sessions, goals, chat, and scheduling in one shared space.
+- **Real-time messaging** — instant chat with mentors, with live presence and typing.
+- **Calendar** — sessions, reminders, and holidays in one view.
 
-The main idea is simple: a student should be able to create a profile, explain what they want to achieve, discover verified alumni who can help, request mentorship, and then continue the relationship through scheduling, messaging, goals, and feedback — all in one place.
+### For mentors
 
----
+- **Request inbox** — review incoming mentorship requests and approve or decline them.
+- **Mentee management** — see your mentees, their goals, and your sessions together.
+- **Availability and leave** — set when you are available and block out leave; scheduling respects both.
+- **Session management** — approve or decline session requests, with overlap checks.
 
-## 2. Why This Project Is Needed
+### For administrators
 
-Students often know that alumni can provide valuable career guidance, but finding the right person and starting a meaningful conversation can be difficult. At the same time, alumni may be willing to help but have no simple way to discover students who genuinely need their expertise.
+- **Alumni verification** — review submitted profiles and approve, reject, or request changes. Only approved mentors can accept mentees.
+- **Platform overview** — live counts of users, verifications, mentorships, requests, and sessions.
+- **AI Engine status** — see whether the local matching engine is reachable, which model is running, and whether ranking is enabled.
+- **Notifications** — every important event reaches the right person.
 
-- **Connect students with relevant and verified LPU alumni.**
-- **Reduce the effort required to find a suitable mentor.**
-- **Make mentor recommendations more personalized using mentor matching.**
-- **Provide a structured mentorship journey instead of only a one-time connection.**
-- **Give university teams useful visibility into alumni engagement and student career readiness.**
+### Mentorly AI
 
----
+An in-app assistant answers questions from the platform's own knowledge and the asking user's own live data — their profile, verification status, requests, mentorships, sessions, and notifications. It never shares one user's data with another. Administrators can also ask for live platform totals.
 
-## 3. User Roles
-
-| Role | Main Responsibility |
-|---|---|
-| **Student** | Creates a career profile, receives mentor recommendations, sends mentorship requests, schedules sessions, manages goals and communicates with mentors. |
-| **Alumni / Mentor** | Builds a professional profile, shares expertise and availability, accepts mentorship requests, conducts sessions and supports students. |
-| **Admin** | Manages users, verification, platform settings, mentorship activity, matching configuration, analytics and audit activity. |
-| **Alumni Officer** | Reviews LPU alumni information and verification submissions and helps manage the verified alumni/mentor network. |
-| **Placement Officer** | Focuses on student career readiness, skill gaps, mentorship participation and placement-related insights where the available data supports them. |
-
----
-
-## 4. How the Platform Works
-
-1. A user signs in through **Clerk** authentication.
-2. The platform identifies the user's role and sends them through the appropriate onboarding process.
-3. The user provides profile information such as phone number, LPU registration number, academic details, and career information.
-4. Phone ownership is verified through an OTP flow using **MSG91**.
-5. LPU affiliation information and required documents can be reviewed by authorized university staff.
-6. Once a student profile is sufficiently complete, the matching system recommends suitable mentors.
-7. The student can view why a mentor was recommended and send a mentorship request (enforcing a cap of max 3 active pending requests).
-8. After acceptance, the mentorship includes sessions, calendar scheduling, messaging, goals, action items, notifications, and feedback.
-9. University staff monitor relevant activity through role-specific dashboards.
-
----
-
-## 5. Mentor Matching
-
-The matching system is intended to assist the matching process rather than replace normal platform rules. The system first considers important eligibility requirements and then ranks suitable mentors using a combination of semantic similarity and structured profile information:
-
-- **Student career goals and mentor expertise**
-- **Skills and areas of interest**
-- **Target job roles and industries**
-- **Professional experience and mentoring areas**
-- **Availability and other configurable matching factors**
-- **Explainable reasons so the student can understand why a mentor is a good fit**
-
-The matching service also has a local in-memory cosine-similarity fallback so that the core recommendation experience does not depend entirely on an Atlas-only vector search feature.
-
----
-
-## 6. Frontend — React + TypeScript
-
-The frontend of MentorConnect is built using **React with TypeScript** (powered by Vite). The interface is designed as a modern role-based single-page web application where students, mentors, and university staff see features tailored to their role.
-
-- **React + TypeScript** for the user interface.
-- **Role-based routing and protected application areas** via React Router.
-- **Responsive dashboards** for Student, Mentor, Admin, Alumni Officer, and Placement Officer.
-- **Reusable components** for forms, tables, cards, dialogs, filters, and profile sections.
-- **API-driven data** instead of hardcoded dashboard numbers.
-- **Loading, empty, error, and success states** for user actions.
-- **Real-time updates** for notifications and messaging through Socket.IO.
-- **Accessible and mobile-friendly interaction patterns**.
-
----
-
-## 7. Backend — Node.js + Express.js
-
-The backend is responsible for authentication integration, business rules, data access, verification workflows, mentorship operations, mentor matching, notifications, and real-time communication.
-
-- **Node.js + Express.js + TypeScript**
-- **MongoDB with Mongoose**
-- **Clerk authentication guard** for authenticated requests
-- **Role-based access control (RBAC)** for protected operations
-- **Redis** for caching, queues, and supporting real-time workloads
-- **BullMQ** for background processing such as embedding and media-related jobs
-- **Socket.IO** for real-time messaging and notifications
-- **Swagger / OpenAPI** documentation for the API (`/api`)
-- **Jest / Supertest-based** backend testing
-
----
-
-## 8. Database — MongoDB
-
-MongoDB is used as the application's main database. The data model covers the main entities needed for the mentorship lifecycle, user management, and university verification workflows:
-
-- **User and role information**
-- **Student and mentor profiles**
-- **Alumni verification records**
-- **Availability and mentorship requests**
-- **Mentorships and sessions**
-- **Goals and action items**
-- **Conversations and messages**
-- **Notifications and feedback**
-- **System configuration and audit logs**
-
----
-
-## 9. Authentication, Phone Verification & LPU Verification
-
-Authentication and identity verification are treated as separate concerns. Clerk is used for application authentication, while MSG91 is used to verify control of a mobile number through OTP. LPU affiliation is handled separately through registration information and an authorized review process.
-
-- **Clerk** handles sign-in and authenticated sessions.
-- **MSG91** handles mobile OTP verification.
-- Phone numbers are normalized and stored in international format.
-- The backend, not the frontend, decides whether a phone number is verified.
-- LPU registration numbers are treated as sensitive information and not publicly exposed.
-- Authorized Admin / Alumni Officer users review verification submissions.
-- Alumni verification and active mentor status are separate concepts.
-
----
-
-## 10. Mentorship Lifecycle
-
-1. Student discovers a recommended mentor.
-2. Student views the mentor profile and match explanation.
-3. Student sends a mentorship request.
-4. Mentor accepts, declines, or the student cancels the request.
-5. An accepted relationship becomes an active mentorship.
-6. The participants schedule sessions and manage availability.
-7. Google Calendar integration supports calendar events.
-8. The participants communicate through private real-time messaging.
-9. Goals and action items can be created and tracked.
-10. Feedback can be submitted after mentorship activity.
-
----
-
-## 11. Role-Based Dashboards
-
-- **Admin Dashboard**: Platform-wide users, verification, mentorship activity, mentor matching configuration, analytics, system activity, and audit information.
-- **Alumni Officer Dashboard**: Alumni verification queue, verified alumni, mentor network, mentor activity, alumni analytics, and mentorship monitoring.
-- **Placement Officer Dashboard**: Student career profiles, readiness indicators, skill gaps, mentorship participation, and career-related insights supported by actual data.
-- **Student Dashboard**: Mentorship overview, upcoming sessions, pending requests, milestones, and recommendations.
-- **Mentor Dashboard**: Mentee count against capacity, session bookings, incoming request approvals, and active conversations.
-
-All dashboard values derive from real backend queries and MongoDB aggregation results.
-
----
-
-## 12. Technology Stack Summary
+## Tech stack
 
 | Layer | Technology |
-|---|---|
-| **Frontend** | React + TypeScript (Vite) |
-| **Backend** | Node.js + Express.js + TypeScript |
-| **Database** | MongoDB 7+, Mongoose |
-| **Authentication** | Clerk |
-| **Phone OTP** | MSG91 |
-| **Caching / Queue** | Redis, BullMQ |
-| **Real-time** | Socket.IO |
-| **Mentor Matching** | Profile-based and structured mentor matching (Google Gemini embeddings + Cosine Similarity fallback) |
-| **Calendar** | Google Calendar integration (OAuth 2.0 with AES-256 encrypted tokens) |
-| **Testing** | Jest, Supertest |
-| **Deployment** | Docker-based deployment with CI/CD support |
+| --- | --- |
+| Frontend (React) | Vite, React 19, Tailwind CSS 4 |
+| Frontend (Next.js) | Next.js 16, React 19 |
+| Backend | Express 5, TypeScript, MongoDB |
+| Authentication | Clerk (email, OAuth, OTP) |
+| AI engine | Ollama, local language model |
+| Real-time | WebSockets |
 
----
+The React app and the Next.js app are the same product in two frameworks — the same pages, the same behaviour, the same backend.
 
-## 13. Security & Privacy
+## Project structure
 
-- Protected API routes and role-based permissions (RBAC).
-- Sensitive LPU registration information is not exposed in public profiles.
-- OTP credentials and verification secrets are kept out of logs.
-- Rate limiting is applied to OTP operations.
-- Verification decisions are recorded for accountability.
-- Private conversations are accessible only to authorized participants.
-- Admin and officer actions are captured through audit logs.
-- Environment variables are used for secrets and external service credentials.
+```
+alumninetwork/
+├── src/                # React frontend (Vite)
+│   ├── pages/          # All pages, flat
+│   ├── components/     # Shared UI, auth, dashboard, mentor, onboarding
+│   └── lib/            # API client, sockets, helpers
+├── nextjs/             # Next.js twin of the frontend (App Router)
+├── backend/
+│   └── src/
+│       ├── routes/     # REST API routes
+│       ├── services/   # Matching, verification, requests, LLM client
+│       └── chatbot/    # Mentorly AI: knowledge, service, routes
+└── README.md
+```
 
----
-
-## 14. How to Run the Project
+## Getting started
 
 ### Prerequisites
-- **Node.js** v18+ (Node 20 or higher recommended)
-- **npm** (v9+)
-- **MongoDB** (Local instance or MongoDB Atlas)
-- **Redis** (Local instance or Upstash Redis)
 
----
+- Node.js 20 or later
+- MongoDB running locally (or a MongoDB Atlas cluster)
+- A Clerk account and publishable key
+- Ollama running locally with a language model pulled (for matching and the chatbot)
 
-### Step 1: Start Backend Database & Redis
-If running services with Docker:
-```bash
-docker compose up -d mongodb redis
-```
-*(Or use your cloud MongoDB Atlas and Upstash Redis credentials in `backend/.env`)*
-
----
-
-### Step 2: Run the Backend (Node.js + Express.js)
+### Install
 
 ```bash
-# Option A: From project root
-npm run server
+# Backend
+cd backend && npm install
 
-# Option B: From backend directory
-cd backend
-npm run server
+# React frontend
+cd .. && npm install
+
+# Next.js frontend
+cd nextjs && npm install
 ```
 
-- **Backend API Gateway**: `http://localhost:3000/api/v1`
-- **Swagger / OpenAPI Documentation**: `http://localhost:3000/api`
-- **Health Check**: `http://localhost:3000/api/v1/health`
+### Configure
 
-To seed database with initial records:
+Copy the example environment files and fill in your own values. Never commit real keys.
+
 ```bash
-cd backend && npm run seed
+# backend/.env
+# MongoDB connection string
+# Clerk publishable and secret keys
+FRONTEND_URL=http://localhost:8080
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.2:3b
+LLM_RANKING_ENABLED=true
 ```
 
-To run backend tests:
 ```bash
-cd backend && npm run test
+# nextjs/.env.local
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
 ```
 
----
+The React app reads the same Clerk publishable key from its own `.env`.
 
-### Step 3: Run the Frontend (React + TypeScript)
+### Run
+
+Run each part in its own terminal. The frontend and backend are never started from a combined script.
 
 ```bash
-# In the root directory:
-npm install
+# Terminal 1 — backend (http://localhost:3000)
+cd backend && npm run server
 
-# Start Vite React development server
+# Terminal 2 — React frontend (http://localhost:8080)
 npm run dev
+
+# Terminal 3 — Next.js frontend (http://localhost:8081)
+cd nextjs && npm run dev
 ```
 
-- **Frontend Application**: `http://localhost:8080`
-- To build for production: `npm run build`
-- To preview production build: `npm run preview`
+## How matching works
 
----
+1. A deterministic scorer ranks candidate mentors. The weights are: semantic similarity 35, career-goal fit 20, expertise 15, industry 10, target role 10, availability 10.
+2. On a cache miss, the local language model re-ranks the top candidates and writes one or two short reasons for each match. It can move a score by at most 15 points and cannot invent mentors or change who is eligible.
+3. If the model is unavailable, the deterministic ranking is used as-is and the result is labelled honestly.
 
-## 15. Short Submission Summary
+## Verification workflow
 
-**LPU MentorConnect** is an alumni mentorship and career networking platform for Lovely Professional University. It connects students with verified alumni based on career goals, skills, interests, target roles, industries, experience, and availability. The platform combines **React + TypeScript** on the frontend with **Node.js + Express.js**, **MongoDB**, **Redis**, **Socket.IO**, **Clerk**, and **mentor matching** on the backend. It supports role-based onboarding, phone verification, alumni verification, mentor recommendations, mentorship requests, scheduling, real-time messaging, goals, feedback, and role-specific university dashboards.
+1. A user completes onboarding and submits their details with a proof-document link.
+2. An administrator or alumni officer reviews the submission.
+3. The verification moves through `SUBMITTED`, `UNDER_REVIEW`, and then `APPROVED`, `REJECTED`, or `CHANGES_REQUESTED`.
+4. Approved users reach their dashboard. Rejected users, or users asked for changes, return to the onboarding review page.
+
+## Contributing
+
+This project is maintained by its author. Bug reports and suggestions are welcome as GitHub issues. Please do not commit secrets, credentials, or environment files.
+
+## Licence
+
+All rights reserved.

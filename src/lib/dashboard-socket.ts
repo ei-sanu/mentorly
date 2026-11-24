@@ -19,14 +19,19 @@ class DashboardSocketManager {
     if (typeof window === 'undefined') return null;
 
     // Mock-auth dev shortcut — must match services/api.ts and use-dashboard-data.ts.
+    // mock-auth signs in on mock_user_token, so check that too, not only
+    // mock_user_email, or mock users connect with no token (backend 401).
+    const mockToken = localStorage.getItem('mock_user_token');
     const mockEmail = localStorage.getItem('mock_user_email');
-    if (mockEmail) {
+    if (mockToken || mockEmail) {
+      const email = mockEmail || 'someshranjanbiswal13678@gmail.com';
       const activeRole = localStorage.getItem('active_role') || 'ADMIN';
-      return `mock_token_${mockEmail}_role${activeRole}`;
+      return `mock_token_${email}_role${activeRole}`;
     }
 
     const poll = async (elapsed = 0): Promise<string | null> => {
       const clerk = (window as any).Clerk;
+      if (clerk?.loaded && !clerk.session) return null;
       if (clerk?.session) {
         try {
           const token = await clerk.session.getToken();

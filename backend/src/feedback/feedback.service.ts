@@ -1,18 +1,13 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { NotFoundException, ForbiddenException, BadRequestException } from '../common/errors';
+import { FeedbackModel, MentorshipModel } from '../database/models';
+import { Types } from 'mongoose';
 import { Feedback, FeedbackDocument } from '../database/schemas/feedback.schema';
 import { Mentorship, MentorshipDocument } from '../database/schemas/mentorship.schema';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
 
-@Injectable()
 export class FeedbackService {
-  constructor(
-    @InjectModel(Feedback.name)
-    private readonly feedbackModel: Model<FeedbackDocument>,
-    @InjectModel(Mentorship.name)
-    private readonly mentorshipModel: Model<MentorshipDocument>,
-  ) {}
+  private readonly feedbackModel = FeedbackModel;
+  private readonly mentorshipModel = MentorshipModel;
 
   async createFeedback(mentorshipId: string, submitterId: string, dto: CreateFeedbackDto) {
     const mentorship = await this.mentorshipModel
@@ -99,3 +94,5 @@ export class FeedbackService {
     }));
   }
 }
+
+export const feedbackService = new FeedbackService();

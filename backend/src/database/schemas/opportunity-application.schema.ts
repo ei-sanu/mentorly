@@ -1,9 +1,6 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
-import { Opportunity } from './opportunity.schema';
-import { User } from './user.schema';
+import { Schema, HydratedDocument, Types } from 'mongoose';
 
-export type OpportunityApplicationDocument = OpportunityApplication & Document;
+export type OpportunityApplicationDocument = HydratedDocument<OpportunityApplication>;
 
 export enum ApplicationStatus {
   APPLIED = 'APPLIED',
@@ -13,21 +10,18 @@ export enum ApplicationStatus {
   REJECTED = 'REJECTED',
 }
 
-@Schema({ timestamps: true })
-export class OpportunityApplication {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: Opportunity.name, required: true, index: true })
+export interface OpportunityApplication {
   opportunityId: Types.ObjectId;
-
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: User.name, required: true, index: true })
   userId: Types.ObjectId;
-
-  @Prop({ required: true, default: ApplicationStatus.APPLIED, enum: ApplicationStatus, index: true })
   status: ApplicationStatus;
-
-  @Prop({ default: '' })
   notes?: string;
 }
 
-export const OpportunityApplicationSchema = SchemaFactory.createForClass(OpportunityApplication);
+export const OpportunityApplicationSchema = new Schema<OpportunityApplication>({
+  opportunityId: { type: Schema.Types.ObjectId, ref: 'Opportunity', required: true, index: true },
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  status: { required: true, default: ApplicationStatus.APPLIED, enum: ApplicationStatus, index: true, type: String },
+  notes: { default: '', type: String },
+}, { timestamps: true });
 // A student can apply to an opportunity only once
 OpportunityApplicationSchema.index({ opportunityId: 1, userId: 1 }, { unique: true });

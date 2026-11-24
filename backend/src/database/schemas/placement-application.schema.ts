@@ -1,7 +1,6 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { Schema, HydratedDocument, Types } from 'mongoose';
 
-export type PlacementApplicationDocument = PlacementApplication & Document;
+export type PlacementApplicationDocument = HydratedDocument<PlacementApplication>;
 
 export enum PlacementStatus {
   APPLIED = 'APPLIED',
@@ -12,22 +11,18 @@ export enum PlacementStatus {
   PLACED = 'PLACED',
 }
 
-@Schema({ timestamps: true })
-export class PlacementApplication {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true, index: true })
+export interface PlacementApplication {
   studentId: Types.ObjectId;
-
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Opportunity', required: true, index: true })
   opportunityId: Types.ObjectId;
-
-  @Prop({ type: String, enum: PlacementStatus, default: PlacementStatus.APPLIED, index: true })
   status: PlacementStatus;
-
-  @Prop({ type: Date })
   interviewDate?: Date;
-
-  @Prop({ type: String, default: '' })
   notes: string;
 }
 
-export const PlacementApplicationSchema = SchemaFactory.createForClass(PlacementApplication);
+export const PlacementApplicationSchema = new Schema<PlacementApplication>({
+  studentId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  opportunityId: { type: Schema.Types.ObjectId, ref: 'Opportunity', required: true, index: true },
+  status: { type: String, enum: PlacementStatus, default: PlacementStatus.APPLIED, index: true },
+  interviewDate: { type: Date },
+  notes: { type: String, default: '' },
+}, { timestamps: true });

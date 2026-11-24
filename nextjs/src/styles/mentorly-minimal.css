@@ -1,0 +1,309 @@
+/**
+ * Mentorly — minimal light theme tokens + base styles.
+ *
+ * WHERE IT GOES (Mac): /Users/somesh/Projects/alumniconnect/alumninetwork
+ *   Save as `src/styles/mentorly-minimal.css` (new file) and import it
+ *   ONCE, after the existing stylesheet, in `src/styles/globals.css`:
+ *
+ *     @import './mentorly-minimal.css';
+ *
+ *   TO-CONFIRM: the current theme file location — find it with:
+ *     find src -name 'globals.css' -o -name 'index.css' | head
+ *   If the project already has a single global CSS file, add the import
+ *   there instead of creating a second entry point.
+ *
+ * WHAT IT IS: the whole-theme tokens for the 2026-11-10 minimal re-theme,
+ * taken from the Matthew about-page reference (style only): flat very
+ * light grey page, near-black text, generous whitespace, one sans font,
+ * no gradients, no heavy cards, no colour. The ONE deliberate exception
+ * is the 404 page's peach/cream background (see NotFound.tsx).
+ *
+ * FONT RULE (2026-11-10): ONE clean sans-serif throughout — Inter, then
+ * the system sans stack. No serif headlines, no mono accents. If the
+ * project still imports Playfair Display / JetBrains Mono (or any serif
+ * or mono family), remove those imports — see README-APPLY.md for the
+ * grep. The Oct-26 serif wordmark is superseded; Navbar.tsx already
+ * renders "Mentorly" in sans.
+ *
+ * THE BLACK PILL NAVBAR STAYS: the floating black pill (Navbar.tsx) is
+ * the one dark element on the light theme — that contrast is the design.
+ * Everything else goes light grey / white / hairline.
+ *
+ * This file does NOT contain `@import "tailwindcss"` — globals.css owns
+ * the Tailwind import. These are plain CSS variables + small component
+ * classes (`.mentorly-*`) used by About.tsx, LandingSections.tsx,
+ * Waitlist.tsx and the Three.js fallback, so those components render
+ * correctly even where Tailwind classes differ.
+ */
+
+:root {
+  /* Surfaces */
+  --mentorly-bg: #f2f2f2; /* flat very light grey page background */
+  --mentorly-surface: #ffffff; /* white cards / pills / dock */
+  --mentorly-surface-soft: #f7f7f7; /* waitlist / secondary sections */
+  --mentorly-404-bg: #fbeedf; /* peach/cream — 404 page ONLY, intentional */
+
+  /* Ink */
+  --mentorly-ink: #111111; /* near-black text */
+  --mentorly-ink-soft: #333333; /* body copy on light grey */
+  --mentorly-muted: #6b6b6b; /* secondary / meta text */
+  --mentorly-faint: #9a9a9a; /* captions, disabled text */
+
+  /* Lines + buttons */
+  --mentorly-hairline: rgba(0, 0, 0, 0.08); /* 1px borders */
+  --mentorly-hairline-strong: rgba(0, 0, 0, 0.14);
+  --mentorly-black: #0a0a0a; /* pill navbar, black buttons */
+  --mentorly-grey-btn: #3f3f46; /* zinc-700 — grey pill CTA */
+  --mentorly-grey-btn-hover: #52525b; /* zinc-600 */
+
+  /* Type — ONE sans stack, everywhere */
+  --mentorly-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  /* Shape + measure */
+  --mentorly-radius-pill: 9999px;
+  --mentorly-radius-card: 24px;
+  --mentorly-page-max: 1120px; /* page column */
+  --mentorly-narrow-max: 580px; /* About text column (~560–600px) */
+  --mentorly-navbar-offset: 98px; /* 58px pill + 32px top (mt-8) + 8px gap */
+}
+
+/* ── Base ───────────────────────────────────────────────────────────── */
+body {
+  background: var(--mentorly-bg);
+  color: var(--mentorly-ink);
+  font-family: var(--mentorly-font);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--mentorly-ink);
+  color: #ffffff;
+}
+
+:focus-visible {
+  outline: 2px solid var(--mentorly-ink);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Anchor targets stop clear of the floating pill (see smooth-scroll.ts). */
+section[id],
+[id^='how-'],
+[id^='industries'],
+[id^='benefits'],
+[id^='testimonials'],
+[id^='faq'],
+[id^='about'],
+[id^='concept'] {
+  scroll-margin-top: var(--mentorly-navbar-offset);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* ── Layout helpers ─────────────────────────────────────────────────── */
+.mentorly-page {
+  margin-inline: auto;
+  max-width: var(--mentorly-page-max);
+  padding-inline: 1.5rem;
+}
+
+.mentorly-narrow {
+  margin-inline: auto;
+  max-width: var(--mentorly-narrow-max);
+}
+
+/* ── Pills, buttons, dock ───────────────────────────────────────────── */
+.mentorly-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--mentorly-hairline-strong);
+  border-radius: var(--mentorly-radius-pill);
+  background: var(--mentorly-surface);
+  color: var(--mentorly-ink-soft);
+  font-size: 0.8125rem;
+  line-height: 1;
+  padding: 0.5rem 0.875rem;
+}
+
+.mentorly-btn-black {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--mentorly-radius-pill);
+  background: var(--mentorly-black);
+  color: #ffffff;
+  font-weight: 500;
+  padding: 0.875rem 1.75rem;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+.mentorly-btn-black:hover {
+  background: #262626;
+}
+.mentorly-btn-black:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.mentorly-btn-white {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid var(--mentorly-hairline-strong);
+  border-radius: var(--mentorly-radius-pill);
+  background: var(--mentorly-surface);
+  color: var(--mentorly-ink);
+  font-weight: 500;
+  padding: 0.875rem 1.75rem;
+  transition: background 0.2s ease;
+}
+.mentorly-btn-white:hover {
+  background: #f0f0f0;
+}
+
+/* Light-grey secondary button (Opero-style hero pair, 2026-11-11).
+ * Same padding/height as .mentorly-btn-black, so the pair lines up. */
+.mentorly-btn-grey {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--mentorly-radius-pill);
+  background: #ececec;
+  color: var(--mentorly-ink);
+  font-weight: 500;
+  padding: 0.875rem 1.75rem;
+  transition: background 0.2s ease;
+}
+.mentorly-btn-grey:hover {
+  background: #e0e0e0;
+}
+
+/* White icon dock (About + reference): soft pill, small square tiles. */
+.mentorly-dock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: var(--mentorly-radius-pill);
+  background: var(--mentorly-surface);
+  border: 1px solid var(--mentorly-hairline);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  padding: 0.625rem 0.75rem;
+}
+.mentorly-dock a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.75rem;
+  background: #f0f0f0;
+  color: var(--mentorly-ink);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+.mentorly-dock a:hover {
+  background: #e4e4e4;
+  transform: translateY(-2px);
+}
+
+/* In-text links in the About column: underlined, like the reference. */
+.mentorly-prose a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  color: var(--mentorly-ink);
+}
+.mentorly-prose a:hover {
+  color: var(--mentorly-muted);
+}
+
+/* ── Three.js fallback: plain CSS dot pattern, no image, no gradient ── */
+.three-fallback {
+  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.13) 1px, transparent 1.5px);
+  background-size: 28px 28px;
+  background-position: center;
+}
+
+/* ── Light landing scope (Mac apply 2026-11-10) ─────────────────────── */
+/* The landing page root carries `.mentorly-light` (see HomePage.tsx).
+ * The old `.glass-theme .pulse-card` rules in globals.css render dark
+ * glass cards; inside the light landing those same cards must be white.
+ * These unlayered rules sit above Tailwind's layered utilities, so they
+ * win over the dark glass without touching globals.css or any card's
+ * markup. Dashboard pages keep `.glass-theme`/`.app-shell` and are
+ * unaffected — this scope exists only on the landing page. */
+.mentorly-light .pulse-card {
+  background: var(--mentorly-surface);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border-color: var(--mentorly-hairline);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05);
+}
+.mentorly-light .pulse-skeleton {
+  background: rgba(0, 0, 0, 0.08);
+}
+.mentorly-light .pulse-skeleton::after {
+  background: linear-gradient(100deg, transparent 20%, rgba(0, 0, 0, 0.06) 50%, transparent 80%);
+}
+
+/* ── Auth modal: dark frosted-glass iOS card (2026-11-11) ───────────── */
+/* The one dark-glass surface on the light site — like the 404's peach is
+ * the one warm accent. Used by AuthModal.tsx (home-page popup) and
+ * LoginPage.tsx (standalone /login fallback). The host provides the
+ * overlay/backdrop; this class is the card shell. */
+.auth-glass-card {
+  border-radius: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(23, 23, 26, 0.85);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(24px) saturate(1.4);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.5),
+    0 2px 8px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+@keyframes auth-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.auth-modal-enter {
+  animation: auth-modal-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes auth-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.auth-overlay-enter {
+  animation: auth-overlay-in 0.2s ease-out both;
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

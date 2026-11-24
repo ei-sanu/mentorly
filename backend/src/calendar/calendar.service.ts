@@ -1,26 +1,23 @@
-import { Injectable, NotFoundException, Inject, forwardRef, Logger } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { NotFoundException } from '../common/errors';
+import { Logger } from '../common/logger';
+import { CalendarIntegrationModel, SessionModel } from '../database/models';
+import { sessionsService } from '../sessions/sessions.service';
+import { Types } from 'mongoose';
 import { CalendarIntegration, CalendarIntegrationDocument } from '../database/schemas/calendar-integration.schema';
 import { Session, SessionDocument, SessionStatus, CalendarSyncStatus } from '../database/schemas/session.schema';
-import { SessionsService } from '../sessions/sessions.service';
 import { google } from 'googleapis';
 import * as crypto from 'crypto';
 
-@Injectable()
 export class CalendarService {
   private readonly logger = new Logger(CalendarService.name);
   private readonly algorithm = 'aes-256-cbc';
   private readonly key: Buffer;
 
-  constructor(
-    @InjectModel(CalendarIntegration.name)
-    private readonly integrationModel: Model<CalendarIntegrationDocument>,
-    @InjectModel(Session.name)
-    private readonly sessionModel: Model<SessionDocument>,
-    @Inject(forwardRef(() => SessionsService))
-    private readonly sessionsService: SessionsService,
-  ) {
+  private readonly integrationModel = CalendarIntegrationModel;
+  private readonly sessionModel = SessionModel;
+  private get sessionsService() { return sessionsService; }
+
+  constructor() {
     const secret = process.env.TOKEN_ENCRYPTION_KEY || 'default-encryption-secret-key-32ch';
     this.key = crypto.scryptSync(secret, 'salt', 32);
   }
@@ -217,3 +214,5 @@ export class CalendarService {
     return { success: true, message: 'Calendar disconnected.' };
   }
 }
+
+export const calendarService = new CalendarService();

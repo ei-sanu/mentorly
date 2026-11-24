@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Phone, CheckCircle2, Loader2, RefreshCw, AlertCircle } from 'lucide-react';
+import { Phone, CheckCircle2, Loader2, RefreshCw, AlertCircle, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -26,6 +26,14 @@ interface Country {
 interface PhoneVerificationStepProps {
   onVerified: () => void;
   authToken?: string;
+  // Reports the typed number to the parent on every change, so the
+  // parent's auto-save draft and submit payload see it (this component
+  // owns the phone input; the parent previously never received it).
+  onPhoneChange?: (phone: { countryCode: string; nationalNumber: string }) => void;
+  // Pre-fill when the component remounts (e.g. after "Change phone
+  // number" clears the verified flag in the parent).
+  initialCountryCode?: string;
+  initialNationalNumber?: string;
 }
 
 // ─── Country list ──────────────────────────────────────────────────────────────
@@ -62,12 +70,32 @@ function useCountdown(initial: number) {
     }, 1000);
   }, []);
 
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
+  useEffect(() => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
   return { count, start };
 }
 
 function pad(n: number) { return n.toString().padStart(2, '0'); }
+
+// ─── Tyre spinner ──────────────────────────────────────────────────────────────
+// Circular loader drawn like a tyre: a dashed tread ring around a rim and a
+// hub dot. It spins fast then brakes to a stop — the motion lives in the
+// `.otp-tyre` class in globals.css (one ~1.1s run: ~1.5 turns fast, then a
+// final half-turn that eases to a parked stop, `both` fill so it stays
+// parked). It replaces the generic Loader2 while the OTP is being sent, so
+// the button reads "tyre spinning → brakes → stopped" instead of an
+// endless spinner. If the request outlasts the 1.1s spin, the tyre simply
+// sits parked with "Sending…" until the response arrives — it never spins
+// forever. `prefers-reduced-motion` disables it (see globals.css).
+function TyreSpinner({ className = 'h-5 w-5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={`otp-tyre ${className}`} aria-hidden="true">
+      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="3" strokeDasharray="3.5 2.5" />
+      <circle cx="12" cy="12" r="4.5" fill="none" stroke="currentColor" strokeWidth="2" />
+      <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
 
 // ─── OTP Input component (4 digits) ───────────────────────────────────────────
 function OtpInput({ value, onChange, disabled }: { value: string; onChange: (v: string) => void; disabled: boolean }) {
@@ -118,8 +146,8 @@ function OtpInput({ value, onChange, disabled }: { value: string; onChange: (v: 
           onPaste={i === 0 ? handlePaste : undefined}
           aria-label={`OTP digit ${i + 1}`}
           className={`w-12 h-14 text-center text-2xl font-bold rounded-xl border-2 transition-all focus:outline-none
-            ${d ? 'border-lpu-orange bg-orange-50 text-gray-900' : 'border-lpu-border bg-white text-gray-900'}
-            ${disabled ? 'opacity-50 cursor-not-allowed' : 'focus:border-lpu-orange focus:ring-2 focus:ring-lpu-orange/20'}
+            ${d ? 'border-neutral-900 bg-neutral-100 text-gray-900' : 'border-lpu-border bg-white text-gray-900'}
+            ${disabled ? 'opacity-50 cursor-not-allowed' : 'focus:border-neutral-900 focus:ring-2 focus:ring-neutral-900/20'}
           `}
         />
       ))}
@@ -128,13 +156,19 @@ function OtpInput({ value, onChange, disabled }: { value: string; onChange: (v: 
 }
 
 // ─── Main Component ────────────────────────────────────────────────────────────
-export default function PhoneVerificationStep({ onVerified, authToken }: PhoneVerificationStepProps) {
+export default function PhoneVerificationStep({ onVerified, authToken, onPhoneChange, initialCountryCode, initialNationalNumber }: PhoneVerificationStepProps) {
   const [state, setState] = useState<VerificationState>('IDLE');
   const [errorMsg, setErrorMsg] = useState('');
   const [successPhone, setSuccessPhone] = useState('');
 
-  const [countryCode, setCountryCode] = useState('+91');
-  const [nationalNumber, setNationalNumber] = useState('');
+  const [countryCode, setCountryCode] = useState(initialCountryCode || '+91');
+  const [nationalNumber, setNationalNumber] = useState(initialNationalNumber || '');
+
+  // Keep the parent's draft + submit payload in sync with what is typed
+  // here (fires once on mount with the initial values, then per edit).
+  useEffect(() => {
+    onPhoneChange?.({ countryCode, nationalNumber });
+  }, [countryCode, nationalNumber, onPhoneChange]);
   const [maskedPhone, setMaskedPhone] = useState('');
 
   const [otp, setOtp] = useState('');
@@ -280,7 +314,7 @@ export default function PhoneVerificationStep({ onVerified, authToken }: PhoneVe
           <p className="text-lg font-bold text-gray-900">Phone number verified</p>
           <p className="text-sm text-lpu-text-secondary mt-1">{successPhone}</p>
         </div>
-        <Button onClick={onVerified} className="mt-2 bg-lpu-orange hover:bg-lpu-orange/90 text-white rounded-xl px-8">
+        <Button onClick={onVerified} className="mt-2 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl px-8">
           Continue
         </Button>
       </div>
@@ -292,7 +326,7 @@ export default function PhoneVerificationStep({ onVerified, authToken }: PhoneVe
     const isVerifying = state === 'VERIFYING';
 
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 otp-enter">
         <div className="text-center space-y-1">
           <p className="text-sm font-semibold text-gray-900">Verification code sent to</p>
           <p className="text-sm text-lpu-text-secondary font-medium">{maskedPhone}</p>
@@ -315,11 +349,16 @@ export default function PhoneVerificationStep({ onVerified, authToken }: PhoneVe
         <Button
           onClick={handleVerify}
           disabled={isVerifying || otp.length < 4}
-          className="w-full rounded-xl h-11 font-bold bg-lpu-orange hover:bg-lpu-orange/90 text-white"
+          className="w-full rounded-xl h-11 font-bold bg-neutral-900 hover:bg-neutral-800 text-white"
         >
           {isVerifying ? (
             <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Verifying...</span>
-          ) : 'Verify Code'}
+          ) : (
+            <span className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4" />
+              <span key="verify" className="otp-label-flip">Verify</span>
+            </span>
+          )}
         </Button>
 
         <div className="text-center text-xs text-lpu-text-secondary">
@@ -330,7 +369,7 @@ export default function PhoneVerificationStep({ onVerified, authToken }: PhoneVe
             <button
               onClick={handleResend}
               disabled={isVerifying}
-              className="text-lpu-orange font-semibold hover:underline disabled:opacity-50"
+              className="text-neutral-900 font-semibold hover:underline disabled:opacity-50"
             >
               <RefreshCw className="inline h-3 w-3 mr-1" />Resend code
             </button>
@@ -339,7 +378,7 @@ export default function PhoneVerificationStep({ onVerified, authToken }: PhoneVe
 
         <button
           onClick={() => { setState('IDLE'); setErrorMsg(''); setOtp(''); }}
-          className="block w-full text-center text-xs text-lpu-text-secondary hover:text-lpu-orange transition-colors"
+          className="block w-full text-center text-xs text-lpu-text-secondary hover:text-neutral-900 transition-colors"
         >
           ← Change phone number
         </button>
@@ -359,7 +398,7 @@ export default function PhoneVerificationStep({ onVerified, authToken }: PhoneVe
               value={countryCode}
               onChange={e => setCountryCode(e.target.value)}
               disabled={state === 'LOADING'}
-              className="h-11 px-3 bg-white border border-lpu-border rounded-xl text-sm font-semibold text-gray-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-lpu-orange/20"
+              className="h-11 px-3 bg-white border border-lpu-border rounded-xl text-sm font-semibold text-gray-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-neutral-900/20"
             >
               {COUNTRIES.map(c => (
                 <option key={c.code} value={c.code}>
@@ -376,20 +415,32 @@ export default function PhoneVerificationStep({ onVerified, authToken }: PhoneVe
               onChange={e => setNationalNumber(e.target.value.replace(/\D/g, ''))}
               onKeyDown={e => e.key === 'Enter' && handleSend()}
               disabled={state === 'LOADING'}
-              className="flex-1 h-11 px-4 rounded-xl bg-white border border-lpu-border text-sm focus:ring-2 focus:ring-lpu-orange focus:outline-none disabled:opacity-50"
+              className="flex-1 h-11 px-4 rounded-xl bg-white border border-lpu-border text-sm focus:ring-2 focus:ring-neutral-900 focus:outline-none disabled:opacity-50"
             />
           </div>
 
-          {/* Send button right-aligned on desktop, stacked on mobile */}
+          {/* Send button right-aligned on desktop, stacked on mobile.
+              Fixed min-width so the label swap (Send code → Sending… →
+              Verify) never makes the button jump in size. While sending,
+              the Phone icon is replaced by the tyre spinner: it spins fast
+              then brakes to a parked stop (see .otp-tyre in globals.css).
+              On failure the state returns here and the button flips back to
+              "Send code" with the error shown above the helper text. */}
           <Button
             onClick={handleSend}
             disabled={state === 'LOADING' || !nationalNumber.trim()}
-            className="w-full sm:w-auto px-6 rounded-xl h-11 font-bold bg-lpu-orange hover:bg-lpu-orange/90 text-white shrink-0"
+            className="w-full sm:w-auto px-6 rounded-xl h-11 font-bold bg-neutral-900 hover:bg-neutral-800 text-white shrink-0 min-w-[148px] justify-center"
           >
             {state === 'LOADING' ? (
-              <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Sending...</span>
+              <span className="flex items-center gap-2">
+                <TyreSpinner className="h-5 w-5" />
+                <span key="sending" className="otp-label-flip">Sending…</span>
+              </span>
             ) : (
-              <span className="flex items-center gap-2"><Phone className="h-4 w-4" /> Send code</span>
+              <span className="flex items-center gap-2">
+                <Phone className="h-4 w-4" />
+                <span key="send" className="otp-label-flip">Send code</span>
+              </span>
             )}
           </Button>
         </div>

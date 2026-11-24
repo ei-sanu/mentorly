@@ -1,7 +1,6 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { Schema, HydratedDocument, Types } from 'mongoose';
 
-export type MentorshipDocument = Mentorship & Document;
+export type MentorshipDocument = HydratedDocument<Mentorship>;
 
 export enum MentorshipStatus {
   ACTIVE = 'ACTIVE',
@@ -12,25 +11,21 @@ export enum MentorshipStatus {
   INACTIVE = 'INACTIVE',
 }
 
-@Schema({ timestamps: true })
-export class Mentorship {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'StudentProfile', required: true, index: true })
+export interface Mentorship {
   studentProfileId: Types.ObjectId;
-
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'MentorProfile', required: true, index: true })
   mentorProfileId: Types.ObjectId;
-
-  @Prop({ required: true, default: MentorshipStatus.ACTIVE, enum: MentorshipStatus, index: true })
   status: MentorshipStatus;
-
-  @Prop({ required: true, default: Date.now })
   startDate: Date;
-
-  @Prop()
   endDate?: Date;
 }
 
-export const MentorshipSchema = SchemaFactory.createForClass(Mentorship);
+export const MentorshipSchema = new Schema<Mentorship>({
+  studentProfileId: { type: Schema.Types.ObjectId, ref: 'StudentProfile', required: true, index: true },
+  mentorProfileId: { type: Schema.Types.ObjectId, ref: 'MentorProfile', required: true, index: true },
+  status: { required: true, default: MentorshipStatus.ACTIVE, enum: MentorshipStatus, index: true, type: String },
+  startDate: { required: true, default: Date.now, type: Date },
+  endDate: { type: Date },
+}, { timestamps: true });
 
 MentorshipSchema.index({ studentProfileId: 1, status: 1 });
 MentorshipSchema.index({ mentorProfileId: 1, status: 1 });

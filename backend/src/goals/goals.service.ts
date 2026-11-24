@@ -1,20 +1,15 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { NotFoundException, ForbiddenException } from '../common/errors';
+import { GoalModel, MentorshipModel } from '../database/models';
+import { notificationsService } from '../notifications/notifications.service';
+import { Types } from 'mongoose';
 import { Goal, GoalDocument, GoalStatus } from '../database/schemas/goal.schema';
 import { Mentorship, MentorshipDocument } from '../database/schemas/mentorship.schema';
 import { CreateGoalDto } from './dto/create-goal.dto';
-import { NotificationsService } from '../notifications/notifications.service';
 
-@Injectable()
 export class GoalsService {
-  constructor(
-    @InjectModel(Goal.name)
-    private readonly goalModel: Model<GoalDocument>,
-    @InjectModel(Mentorship.name)
-    private readonly mentorshipModel: Model<MentorshipDocument>,
-    private readonly notifications: NotificationsService,
-  ) {}
+  private readonly goalModel = GoalModel;
+  private readonly mentorshipModel = MentorshipModel;
+  private get notifications() { return notificationsService; }
 
   async findGoalsForMentorship(mentorshipId: string, userId: string): Promise<any[]> {
     const mentorship = await this.mentorshipModel
@@ -168,3 +163,5 @@ export class GoalsService {
     return { success: true, message: 'Goal deleted successfully.' };
   }
 }
+
+export const goalsService = new GoalsService();

@@ -1,6 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { UserModel, StudentProfileModel, MentorProfileModel, AlumniVerificationModel, MentorshipModel, MentorshipRequestModel, SessionModel, GoalModel, FeedbackModel, OpportunityModel, PlacementApplicationModel } from '../database/models';
+import { matchingService } from '../matching/matching.service';
 import { User, UserDocument, Role } from '../database/schemas/user.schema';
 import { MentorProfile, MentorProfileDocument, VerificationStatus, MentorStatus } from '../database/schemas/mentor-profile.schema';
 import { StudentProfile, StudentProfileDocument } from '../database/schemas/student-profile.schema';
@@ -12,77 +11,31 @@ import { AlumniVerification, AlumniVerificationDocument } from '../database/sche
 import { MentorshipRequest, MentorshipRequestDocument, RequestStatus } from '../database/schemas/mentorship-request.schema';
 import { Opportunity, OpportunityDocument } from '../database/schemas/opportunity.schema';
 import { PlacementApplication, PlacementApplicationDocument } from '../database/schemas/placement-application.schema';
-import Redis from 'ioredis';
-import { MatchingService } from '../matching/matching.service';
+import { inMemoryStore, InMemoryStore } from '../common/in-memory-store';
 
 const CACHE_TTL_SECONDS = 30;
 
-@Injectable()
 export class AnalyticsService {
-  private redis: Redis | null = null;
+  // In-process cache (was Upstash Redis). Shared instance so
+  // bustDashboardCaches() in this file and in dashboard-events
+  // delete exactly the keys cached() wrote.
+  private redis: InMemoryStore = inMemoryStore;
 
-  constructor(
-    @InjectModel(User.name)
-    private readonly userModel: Model<UserDocument>,
-    @InjectModel(StudentProfile.name)
-    private readonly studentProfileModel: Model<StudentProfileDocument>,
-    @InjectModel(MentorProfile.name)
-    private readonly mentorProfileModel: Model<MentorProfileDocument>,
-    @InjectModel(AlumniVerification.name)
-    private readonly verificationModel: Model<AlumniVerificationDocument>,
-    @InjectModel(Mentorship.name)
-    private readonly mentorshipModel: Model<MentorshipDocument>,
-    @InjectModel(MentorshipRequest.name)
-    private readonly requestModel: Model<MentorshipRequestDocument>,
-    @InjectModel(Session.name)
-    private readonly sessionModel: Model<SessionDocument>,
-    @InjectModel(Goal.name)
-    private readonly goalModel: Model<GoalDocument>,
-    @InjectModel(Feedback.name)
-    private readonly feedbackModel: Model<FeedbackDocument>,
-    @InjectModel(Opportunity.name)
-    private readonly opportunityModel: Model<OpportunityDocument>,
-    @InjectModel(PlacementApplication.name)
-    private readonly placementApplicationModel: Model<PlacementApplicationDocument>,
-    private readonly matchingService: MatchingService,
-  ) {}
+  private readonly userModel = UserModel;
+  private readonly studentProfileModel = StudentProfileModel;
+  private readonly mentorProfileModel = MentorProfileModel;
+  private readonly verificationModel = AlumniVerificationModel;
+  private readonly mentorshipModel = MentorshipModel;
+  private readonly requestModel = MentorshipRequestModel;
+  private readonly sessionModel = SessionModel;
+  private readonly goalModel = GoalModel;
+  private readonly feedbackModel = FeedbackModel;
+  private readonly opportunityModel = OpportunityModel;
+  private readonly placementApplicationModel = PlacementApplicationModel;
+  private get matchingService() { return matchingService; }
 
-  // ── Redis cache (short TTL so aggregates stay fresh; events also bust these keys) ──
-  private getRedis(): Redis | null {
-    if (this.redis) return this.redis;
-    try {
-      const redisOptions: any = {};
-      if (process.env.REDIS_URL && process.env.REDIS_URL.startsWith('rediss://')) {
-        redisOptions.tls = { rejectUnauthorized: false };
-      }
-      this.redis = process.env.REDIS_URL
-        ? new Redis(process.env.REDIS_URL, {
-            lazyConnect: true,
-            ...redisOptions,
-            maxRetriesPerRequest: 1,
-            enableOfflineQueue: false,
-            connectTimeout: 5000,
-            retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 2000)),
-          })
-        : new Redis({
-            host: process.env.REDIS_HOST || 'localhost',
-            port: parseInt(process.env.REDIS_PORT || '6379', 10),
-            lazyConnect: true,
-            ...redisOptions,
-            maxRetriesPerRequest: 1,
-            enableOfflineQueue: false,
-            connectTimeout: 5000,
-            retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 2000)),
-          });
-      this.redis.on('error', (err) => {
-        if (!(this.redis as any).__loggedError) {
-          (this.redis as any).__loggedError = true;
-          console.warn(`[analytics] Redis unavailable: ${err.message}. Cache disabled.`);
-        }
-      });
-    } catch {
-      this.redis = null;
-    }
+  // ── In-process cache (short TTL so aggregates stay fresh; events also bust these keys) ──
+  private getRedis(): InMemoryStore {
     return this.redis;
   }
 
@@ -914,3 +867,5 @@ export class AnalyticsService {
     };
   }
 }
+
+export const analyticsService = new AnalyticsService();

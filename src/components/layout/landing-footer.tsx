@@ -1,69 +1,93 @@
+'use client';
+
 import Link from 'next/link';
 import { LpuLogo } from '@/components/ui/lpu-logo';
 import { Facebook, Twitter, Linkedin, Instagram } from 'lucide-react';
 
+const SOCIALS = [
+  { icon: Facebook, label: 'Facebook' },
+  { icon: Twitter, label: 'Twitter' },
+  { icon: Linkedin, label: 'LinkedIn' },
+  { icon: Instagram, label: 'Instagram' },
+];
+
+const COLUMNS = [
+  {
+    heading: 'Platform',
+    links: [
+      { href: '/#how-it-works', label: 'How it works' },
+      { href: '/#benefits', label: 'Benefits' },
+      { href: '/#demo-login', label: 'Demo Login' },
+    ],
+  },
+  {
+    heading: 'Resources',
+    links: [
+      { href: '#', label: 'Help Center' },
+      { href: '#', label: 'Career Guides' },
+      { href: '#', label: 'Alumni Network' },
+    ],
+  },
+  {
+    heading: 'Legal',
+    links: [
+      { href: '/terms', label: 'Terms of Service' },
+      { href: '/privacy', label: 'Privacy Policy' },
+      { href: '#', label: 'Cookie Policy' },
+    ],
+  },
+];
+
 export function LandingFooter() {
   return (
-    <footer className="border-t border-lpu-border bg-white">
+    <footer className="relative border-t border-black/10 bg-white">
       <div className="container mx-auto max-w-7xl px-4 py-16 md:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 md:gap-8">
-          <div className="md:col-span-1 space-y-6">
-            <Link href="/" className="inline-block">
-              <LpuLogo className="h-10 w-auto" />
+        <div className="grid grid-cols-1 gap-12 md:grid-cols-4 md:gap-8">
+          <div className="space-y-6 md:col-span-1">
+            <Link href="/" className="inline-block" aria-label="Mentorly home">
+              <span className="logo-pill flex items-center rounded-full bg-white px-3 py-1 shadow-sm">
+                <LpuLogo className="h-9 w-auto" />
+              </span>
             </Link>
-            <p className="text-sm text-lpu-text-secondary leading-relaxed">
-              The official alumni mentorship platform for Lovely Professional University. Connecting students with verified industry experts.
+            <p className="text-sm leading-relaxed text-[#6b6b6b]">
+              The alumni mentorship platform connecting students with verified industry experts.
             </p>
-            <div className="flex items-center gap-4">
-              <a href="#" className="text-lpu-text-muted hover:text-lpu-orange transition-colors">
-                <Facebook className="h-5 w-5" />
-              </a>
-              <a href="#" className="text-lpu-text-muted hover:text-lpu-orange transition-colors">
-                <Twitter className="h-5 w-5" />
-              </a>
-              <a href="#" className="text-lpu-text-muted hover:text-lpu-orange transition-colors">
-                <Linkedin className="h-5 w-5" />
-              </a>
-              <a href="#" className="text-lpu-text-muted hover:text-lpu-orange transition-colors">
-                <Instagram className="h-5 w-5" />
-              </a>
+            <div className="flex items-center gap-2">
+              {SOCIALS.map((social) => (
+                <a
+                  key={social.label}
+                  href="#"
+                  aria-label={social.label}
+                  className="flex h-9 w-9 items-center justify-center rounded-md border border-black/10 bg-[#f2f2f2] text-[#6b6b6b] transition-colors hover:bg-black/5 hover:text-[#111111]"
+                >
+                  <social.icon className="h-4 w-4" />
+                </a>
+              ))}
             </div>
           </div>
-          
-          <div className="space-y-4">
-            <h4 className="text-sm font-bold uppercase tracking-wider text-lpu-text-primary">Platform</h4>
-            <ul className="space-y-3">
-              <li><Link href="/#how-it-works" className="text-sm text-lpu-text-secondary hover:text-lpu-orange transition-colors">How it works</Link></li>
-              <li><Link href="/#benefits" className="text-sm text-lpu-text-secondary hover:text-lpu-orange transition-colors">Benefits</Link></li>
-              <li><Link href="/#demo-login" className="text-sm text-lpu-text-secondary hover:text-lpu-orange transition-colors">Demo Login</Link></li>
-            </ul>
-          </div>
-          
-          <div className="space-y-4">
-            <h4 className="text-sm font-bold uppercase tracking-wider text-lpu-text-primary">Resources</h4>
-            <ul className="space-y-3">
-              <li><a href="#" className="text-sm text-lpu-text-secondary hover:text-lpu-orange transition-colors">Help Center</a></li>
-              <li><a href="#" className="text-sm text-lpu-text-secondary hover:text-lpu-orange transition-colors">Career Guides</a></li>
-              <li><a href="#" className="text-sm text-lpu-text-secondary hover:text-lpu-orange transition-colors">Alumni Network</a></li>
-            </ul>
-          </div>
-          
-          <div className="space-y-4">
-            <h4 className="text-sm font-bold uppercase tracking-wider text-lpu-text-primary">Legal</h4>
-            <ul className="space-y-3">
-              <li><Link href="/terms" className="text-sm text-lpu-text-secondary hover:text-lpu-orange transition-colors">Terms of Service</Link></li>
-              <li><Link href="/privacy" className="text-sm text-lpu-text-secondary hover:text-lpu-orange transition-colors">Privacy Policy</Link></li>
-              <li><a href="#" className="text-sm text-lpu-text-secondary hover:text-lpu-orange transition-colors">Cookie Policy</a></li>
-            </ul>
-          </div>
+
+          {COLUMNS.map((column) => (
+            <div key={column.heading} className="space-y-4">
+              <h4 className="text-[11px] font-medium uppercase tracking-wider text-[#9a9a9a]">{column.heading}</h4>
+              <ul className="space-y-3">
+                {column.links.map((link) => (
+                  <li key={link.label}>
+                    <Link href={link.href} className="text-sm text-[#6b6b6b] transition-colors hover:text-[#111111]">
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
-        
-        <div className="mt-16 pt-8 border-t border-lpu-border flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-sm text-lpu-text-muted text-center md:text-left">
-            © {new Date().getFullYear()} Lovely Professional University. All rights reserved.
+
+        <div className="mt-16 flex flex-col items-center justify-between gap-4 border-t border-black/10 pt-8 md:flex-row">
+          <p className="text-center text-sm text-[#9a9a9a] md:text-left">
+            © {new Date().getFullYear()} Mentorly. All rights reserved.
           </p>
-          <p className="text-sm text-lpu-text-muted text-center md:text-right">
-            Designed for the LPU Community.
+          <p className="text-center text-sm text-[#9a9a9a] md:text-right">
+            Designed for the Mentorly community.
           </p>
         </div>
       </div>

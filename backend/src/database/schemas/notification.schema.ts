@@ -1,28 +1,33 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { Schema, HydratedDocument, Types } from 'mongoose';
 
-export type NotificationDocument = Notification & Document;
+export type NotificationDocument = HydratedDocument<Notification>;
 
-@Schema({ timestamps: true })
-export class Notification {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true, index: true })
+export interface Notification {
   userId: Types.ObjectId;
-
-  @Prop({ required: true })
   type: string;
-
-  @Prop({ required: true })
   title: string;
-
-  @Prop({ required: true })
   message: string;
-
-  @Prop({ required: true, default: false, index: true })
   read: boolean;
-
-  @Prop({ type: MongooseSchema.Types.Mixed })
   metadata?: any;
+  // (Item 4, 2026-11-20) Proper details: who it is from, what it is about,
+  // and where it links. All optional — legacy rows predate them and are
+  // backfilled at read time in notifications.service.ts.
+  actorName?: string;
+  entityType?: string;
+  entityId?: string;
+  link?: string;
 }
 
-export const NotificationSchema = SchemaFactory.createForClass(Notification);
+export const NotificationSchema = new Schema<Notification>({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  type: { required: true, type: String },
+  title: { required: true, type: String },
+  message: { required: true, type: String },
+  read: { required: true, default: false, index: true, type: Boolean },
+  metadata: { type: Schema.Types.Mixed },
+  actorName: { type: String },
+  entityType: { type: String },
+  entityId: { type: String },
+  link: { type: String },
+}, { timestamps: true });
 NotificationSchema.index({ userId: 1, read: 1, createdAt: -1 });

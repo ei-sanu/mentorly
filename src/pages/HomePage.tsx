@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import {
   ShieldCheck,
   CheckCircle2,
   GraduationCap,
   ArrowRight,
+  ArrowUpRight,
   Video,
   Target,
   Users,
@@ -19,13 +19,17 @@ import {
   Award,
   Quote,
   ChevronDown,
-  Sparkles,
   BookOpen,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'motion/react';
 import { LandingHeader } from '@/components/layout/landing-header';
+import AuthModal from '@/components/auth/AuthModal';
 import { LandingFooter } from '@/components/layout/landing-footer';
+import MinimalAbout from '@/components/landing/MinimalAbout';
+import { MentorlyHero, TrustStrip } from '@/components/landing/LandingSections';
+import Waitlist from '@/components/landing/Waitlist';
+import { initAnchorSmoothScroll, scrollToHashOnLoad } from '@/components/layout/smooth-scroll';
 
 const STATS = [
   { icon: Users, value: '500+', label: 'Verified Alumni Mentors' },
@@ -53,9 +57,9 @@ const TESTIMONIALS = [
   },
   {
     quote:
-      'As an alumnus working abroad, MentorConnect makes it effortless to give back. The structured session framework means every call is focused and genuinely useful for the student.',
+      'As an alumnus working abroad, Mentorly makes it effortless to give back. The structured session framework means every call is focused and genuinely useful for the student.',
     name: 'Rahul Verma',
-    role: 'Senior Software Engineer, LPU Alumnus',
+    role: 'Senior Software Engineer, Alumnus',
     highlight: 'Mentoring 12+ students',
   },
   {
@@ -69,14 +73,14 @@ const TESTIMONIALS = [
 
 const FAQS = [
   {
-    question: 'Is MentorConnect free for LPU students?',
+    question: 'Is Mentorly free for students?',
     answer:
-      'Yes. MentorConnect is completely free for currently enrolled LPU students. Simply sign up with your university credentials to start browsing and requesting mentorship sessions.',
+      'Yes. Mentorly is completely free for currently enrolled students. Simply sign up to start browsing and requesting mentorship sessions.',
   },
   {
     question: 'How are mentors verified?',
     answer:
-      'Every mentor is a verified LPU alumnus. Our admin team reviews each mentor application — checking graduation records, professional profiles, and employment history — before they can accept mentee requests.',
+      'Every mentor is a verified alumnus. Our admin team reviews each mentor application — checking graduation records, professional profiles, and employment history — before they can accept mentee requests.',
   },
   {
     question: 'How do mentoring sessions happen?',
@@ -86,7 +90,7 @@ const FAQS = [
   {
     question: 'Can alumni also join as mentors?',
     answer:
-      'Absolutely. We actively welcome LPU graduates from all batches and industries. Submit an onboarding request, complete verification, and start accepting mentees based on your availability.',
+      'Absolutely. We actively welcome graduates from all batches and industries. Submit an onboarding request, complete verification, and start accepting mentees based on your availability.',
   },
   {
     question: 'What if a mentor is not a good fit?',
@@ -96,11 +100,22 @@ const FAQS = [
 ];
 
 export default function LandingPage() {
-  const router = useRouter();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  /* Auth popup state (2026-11-11): which tab the home-page AuthModal
+     opens on, or null when closed. */
+  const [authModalTab, setAuthModalTab] = useState<'login' | 'register' | null>(null);
 
+  /* Smooth anchor scrolling past the floating pill (2026-11-10). */
+  useEffect(() => {
+    const cleanup = initAnchorSmoothScroll();
+    scrollToHashOnLoad();
+    return cleanup;
+  }, []);
+
+  /* For Mentors + Final CTA buttons open the auth popup (register tab)
+     on the home page itself — no navigation away (2026-11-11). */
   const handleGetStarted = () => {
-    router.push('/login');
+    setAuthModalTab('register');
   };
 
   const fadeIn = (delay: number) => ({
@@ -111,96 +126,66 @@ export default function LandingPage() {
   });
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <LandingHeader />
+    <div id="main-content" className="mentorly-light relative flex min-h-screen flex-col bg-[#f2f2f2] text-[#111111]">
+      <div className="relative">
+        <LandingHeader onAuthClick={(tab) => setAuthModalTab(tab)} />
+      </div>
 
-      <main className="flex-1">
-        {/* Hero Section */}
-        <section className="relative overflow-hidden bg-lpu-bg pt-24 pb-20">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -top-40 -right-40 h-[500px] w-[500px] rounded-full bg-orange-100/60 blur-3xl"
-          />
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute -bottom-40 -left-40 h-[400px] w-[400px] rounded-full bg-orange-50 blur-3xl"
-          />
+      <main className="relative flex-1">
+        {/* Hero (2026-11-11 redesign): two-column Opero-style layout in
+            MentorlyHero + quiet TrustStrip. The dot-particle
+            ThreeBackground is unmounted from the hero — the component
+            file stays in place (src/components/landing/ThreeBackground.tsx). */}
+        <MentorlyHero onAuthClick={(tab) => setAuthModalTab(tab)} />
+        <TrustStrip />
+
+        {/* Concept — light minimal restyle (2026-11-10): flat white
+            section, big sans headline on the left, small text on the
+            right, credit line along the bottom. Mentorly copy only. */}
+        <section className="relative overflow-hidden border-t border-black/10 bg-white" id="concept">
+          <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-1/2 hidden border-l border-dashed border-black/10 md:block" />
+          <div className="relative z-10 mx-auto grid max-w-7xl gap-16 px-4 py-24 md:grid-cols-2 md:items-center md:px-8 md:py-32">
+            <motion.div {...fadeIn(0.1)}>
+              <p className="label-caps mb-6 text-black/50">The concept</p>
+              <h2 className="font-display text-6xl leading-[0.95] text-black md:text-7xl">
+                <span className="block">Create new</span>
+                <span className="block">career.</span>
+              </h2>
+              <span aria-hidden="true" className="mt-8 block h-[3px] w-12 bg-black" />
+            </motion.div>
+            <motion.div {...fadeIn(0.2)}>
+              <p className="label-caps mb-4 text-[#9a9a9a]">What it is</p>
+              <p className="max-w-md text-base leading-relaxed text-[#333333]">
+                Mentorly pairs you with verified alumni across industries — so your next step starts with real experience, not guesswork.
+              </p>
+              <p className="mt-4 max-w-md text-sm leading-relaxed text-[#6b6b6b]">
+                Browse mentors, send a request, and meet on the platform. Every mentor is checked before they can accept a mentee.
+              </p>
+            </motion.div>
+          </div>
+          <div className="relative z-10 mx-auto flex max-w-7xl items-center justify-between px-4 pb-10 md:px-8">
+            <p className="label-caps text-black/50">Created for the Mentorly community</p>
+            <p className="label-caps text-[#9a9a9a]">Mentorly © 2026</p>
+          </div>
+        </section>
+
+        {/* Stats */}
+        <section className="border-t border-black/10 py-16">
           <div className="container mx-auto max-w-7xl px-4 md:px-8">
-            <div className="flex flex-col items-center text-center">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-sm font-medium text-lpu-orange mb-6"
-              >
-                <Sparkles className="h-4 w-4" />
-                Official LPU Alumni Network
-              </motion.div>
-              <motion.h1
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.1 }}
-                className="max-w-4xl text-5xl font-extrabold leading-tight tracking-tighter text-gray-900 md:text-6xl lg:text-7xl"
-              >
-                Connect with verified LPU alumni. <br className="hidden md:block" />
-                Build your career.
-              </motion.h1>
-              <motion.p
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.2 }}
-                className="mt-6 max-w-2xl text-lg text-lpu-text-secondary md:text-xl leading-relaxed"
-              >
-                Get structured guidance, resume reviews, and career advice from alumni working at top global companies.
-                Protected, professional, and purpose-built for LPU students.
-              </motion.p>
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.3 }}
-                className="mt-10 flex flex-col sm:flex-row gap-4"
-              >
-                <Button
-                  size="lg"
-                  className="h-14 rounded-xl px-8 text-base shadow-sm font-bold bg-lpu-orange hover:bg-lpu-orange/95 text-white"
-                  onClick={handleGetStarted}
-                >
-                  Get Started as Student
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="h-14 rounded-xl px-8 text-base bg-white shadow-sm border-gray-200 font-bold"
-                  onClick={handleGetStarted}
-                >
-                  Access Platform
-                </Button>
-              </motion.div>
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.5, delay: 0.45 }}
-                className="mt-4 flex items-center gap-1.5 text-sm text-lpu-text-muted"
-              >
-                <ShieldCheck className="h-4 w-4 text-lpu-orange" />
-                Free for enrolled students · Mentors manually verified · Safe in-platform messaging
-              </motion.p>
-            </div>
-
-            {/* Stats */}
             <motion.div
               {...fadeIn(0.15)}
-              className="mt-16 grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-6"
+              className="grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-6"
             >
               {STATS.map((stat) => (
                 <div
                   key={stat.label}
-                  className="flex flex-col items-center rounded-2xl border border-gray-100 bg-white p-6 text-center shadow-sm"
+                  className="flex flex-col items-center rounded-lg border border-black/10 bg-white p-6 text-center"
                 >
-                  <stat.icon className="mb-3 h-6 w-6 text-lpu-orange" />
-                  <p className="text-3xl font-extrabold tracking-tight text-gray-900">{stat.value}</p>
-                  <p className="mt-1 text-sm text-lpu-text-secondary">{stat.label}</p>
+                  <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-md border border-black/10 bg-white">
+                    <stat.icon className="h-5 w-5 text-[#111111]" />
+                  </span>
+                  <p className="text-3xl font-semibold tracking-tight text-[#111111] tabular-nums">{stat.value}</p>
+                  <p className="mt-1 text-sm text-[#6b6b6b]">{stat.label}</p>
                 </div>
               ))}
             </motion.div>
@@ -208,19 +193,20 @@ export default function LandingPage() {
         </section>
 
         {/* How It Works */}
-        <section className="bg-white py-24" id="how-it-works">
+        <section className="scroll-mt-28 border-t border-black/10 py-24" id="how-it-works">
           <div className="container mx-auto max-w-7xl px-4 md:px-8">
-            <div className="text-center max-w-3xl mx-auto mb-16">
-              <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-                How MentorConnect Works
+            <div className="mx-auto mb-16 max-w-3xl text-center">
+              <p className="label-caps mb-4 text-[#9a9a9a]">How it works</p>
+              <h2 className="font-display text-3xl tracking-tight text-[#111111] sm:text-4xl">
+                How Mentorly Works
               </h2>
-              <p className="mt-4 text-lg text-lpu-text-secondary">
-                Three simple steps to accelerate your career growth with the help of experienced LPU alumni.
+              <p className="mt-4 text-lg text-[#6b6b6b]">
+                Three simple steps to accelerate your career growth with the help of experienced alumni.
               </p>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-8 relative">
-              <div className="hidden md:block absolute top-1/2 left-[10%] right-[10%] h-0.5 bg-gray-100 -translate-y-1/2 z-0" />
+            <div className="relative grid gap-8 md:grid-cols-3">
+              <div className="absolute top-1/2 left-[10%] right-[10%] z-0 hidden h-px -translate-y-1/2 bg-black/5 md:block" />
 
               {[
                 {
@@ -240,12 +226,12 @@ export default function LandingPage() {
                 },
               ].map((item, i) => (
                 <motion.div key={item.step} {...fadeIn(i * 0.1)}>
-                  <div className="relative z-10 flex h-full flex-col items-center text-center bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:border-orange-200 hover:shadow-md transition-all">
-                    <div className="h-16 w-16 bg-orange-50 text-lpu-orange rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-orange-100">
+                  <div className="pulse-card relative z-10 flex h-full flex-col items-center rounded-lg border p-6 text-center">
+                    <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-md border border-black/10 bg-white text-[#111111]">
                       <item.icon className="h-8 w-8" />
                     </div>
-                    <h3 className="text-xl font-bold mb-2">{item.step}</h3>
-                    <p className="text-lpu-text-secondary">{item.desc}</p>
+                    <h3 className="mb-2 text-xl font-bold text-[#111111]">{item.step}</h3>
+                    <p className="text-[#6b6b6b]">{item.desc}</p>
                   </div>
                 </motion.div>
               ))}
@@ -254,16 +240,14 @@ export default function LandingPage() {
         </section>
 
         {/* Industries */}
-        <section className="bg-lpu-bg py-24 border-t border-lpu-border" id="industries">
+        <section className="scroll-mt-28 border-t border-black/10 py-24" id="industries">
           <div className="container mx-auto max-w-7xl px-4 md:px-8">
-            <div className="text-center max-w-3xl mx-auto mb-16">
-              <span className="inline-block rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-sm font-medium text-lpu-orange mb-4">
-                Explore Domains
-              </span>
-              <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+            <div className="mx-auto mb-16 max-w-3xl text-center">
+              <p className="label-caps mb-4 text-[#9a9a9a]">Explore Domains</p>
+              <h2 className="font-display text-3xl tracking-tight text-[#111111] sm:text-4xl">
                 Find mentors across every career path
               </h2>
-              <p className="mt-4 text-lg text-lpu-text-secondary">
+              <p className="mt-4 text-lg text-[#6b6b6b]">
                 From product engineering to higher studies abroad — our alumni network spans industries, roles, and
                 geographies.
               </p>
@@ -272,13 +256,13 @@ export default function LandingPage() {
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {INDUSTRIES.map((industry, i) => (
                 <motion.div key={industry.name} {...fadeIn(i * 0.07)}>
-                  <div className="group flex h-full items-start gap-4 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-all hover:border-orange-200 hover:shadow-md">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-orange-50 text-lpu-orange border border-orange-100 group-hover:bg-lpu-orange group-hover:text-white transition-colors">
+                  <div className="pulse-card group flex h-full items-start gap-4 rounded-lg border p-6">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-black/10 bg-white text-[#111111] transition-colors group-hover:bg-black group-hover:text-white group-hover:border-black">
                       <industry.icon className="h-6 w-6" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-lg">{industry.name}</h3>
-                      <p className="mt-1 text-sm text-lpu-text-secondary leading-relaxed">{industry.detail}</p>
+                      <h3 className="text-lg font-bold text-[#111111]">{industry.name}</h3>
+                      <p className="mt-1 text-sm leading-relaxed text-[#6b6b6b]">{industry.detail}</p>
                     </div>
                   </div>
                 </motion.div>
@@ -288,14 +272,15 @@ export default function LandingPage() {
         </section>
 
         {/* Benefits / Trust */}
-        <section className="border-t border-lpu-border bg-white py-24" id="benefits">
+        <section className="scroll-mt-28 border-t border-black/10 py-24" id="benefits">
           <div className="container mx-auto max-w-7xl px-4 md:px-8">
-            <div className="text-center max-w-3xl mx-auto mb-16">
-              <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-                Why choose MentorConnect?
+            <div className="mx-auto mb-16 max-w-3xl text-center">
+              <p className="label-caps mb-4 text-[#9a9a9a]">Why Mentorly</p>
+              <h2 className="font-display text-3xl tracking-tight text-[#111111] sm:text-4xl">
+                Why choose Mentorly?
               </h2>
-              <p className="mt-4 text-lg text-lpu-text-secondary">
-                Designed exclusively for the LPU community to foster meaningful professional relationships.
+              <p className="mt-4 text-lg text-[#6b6b6b]">
+                Designed exclusively for the Mentorly community to foster meaningful professional relationships.
               </p>
             </div>
             <div className="grid gap-12 md:grid-cols-3">
@@ -303,7 +288,7 @@ export default function LandingPage() {
                 {
                   icon: ShieldCheck,
                   title: 'Verified Alumni',
-                  desc: 'Every mentor is a verified graduate of Lovely Professional University, ensuring authentic and safe interactions.',
+                  desc: 'Every mentor is a verified graduate, ensuring authentic and safe interactions.',
                 },
                 {
                   icon: CheckCircle2,
@@ -317,11 +302,11 @@ export default function LandingPage() {
                 },
               ].map((benefit, i) => (
                 <motion.div key={benefit.title} {...fadeIn(i * 0.1)} className="flex flex-col items-center text-center">
-                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-lpu-bg shadow-sm border border-gray-100 text-lpu-orange">
+                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-md border border-black/10 bg-white text-[#111111]">
                     <benefit.icon className="h-8 w-8" />
                   </div>
-                  <h3 className="mb-2 text-xl font-bold">{benefit.title}</h3>
-                  <p className="text-lpu-text-secondary">{benefit.desc}</p>
+                  <h3 className="mb-2 text-xl font-bold text-[#111111]">{benefit.title}</h3>
+                  <p className="text-[#6b6b6b]">{benefit.desc}</p>
                 </motion.div>
               ))}
             </div>
@@ -329,38 +314,36 @@ export default function LandingPage() {
         </section>
 
         {/* Testimonials */}
-        <section className="bg-lpu-bg py-24 border-t border-lpu-border" id="testimonials">
+        <section className="scroll-mt-28 border-t border-black/10 py-24" id="testimonials">
           <div className="container mx-auto max-w-7xl px-4 md:px-8">
-            <div className="text-center max-w-3xl mx-auto mb-16">
-              <span className="inline-block rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-sm font-medium text-lpu-orange mb-4">
-                Success Stories
-              </span>
-              <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+            <div className="mx-auto mb-16 max-w-3xl text-center">
+              <p className="label-caps mb-4 text-[#9a9a9a]">Success Stories</p>
+              <h2 className="font-display text-3xl tracking-tight text-[#111111] sm:text-4xl">
                 Loved by students and mentors alike
               </h2>
-              <p className="mt-4 text-lg text-lpu-text-secondary">
-                Real stories from the LPU community — placements secured, careers accelerated, and knowledge passed on.
+              <p className="mt-4 text-lg text-[#6b6b6b]">
+                Real stories from the Mentorly community — placements secured, careers accelerated, and knowledge passed on.
               </p>
             </div>
 
             <div className="grid gap-8 md:grid-cols-3">
               {TESTIMONIALS.map((t, i) => (
                 <motion.figure key={t.name} {...fadeIn(i * 0.1)}>
-                  <div className="flex h-full flex-col rounded-2xl border border-gray-100 bg-white p-8 shadow-sm">
-                    <Quote className="h-8 w-8 text-orange-200 mb-4" fill="currentColor" />
-                    <blockquote className="flex-1 text-lpu-text-secondary leading-relaxed">
+                  <div className="pulse-card flex h-full flex-col rounded-lg border p-8">
+                    <Quote className="mb-4 h-8 w-8 text-[#9a9a9a]" fill="currentColor" />
+                    <blockquote className="flex-1 leading-relaxed text-[#555555]">
                       &ldquo;{t.quote}&rdquo;
                     </blockquote>
-                    <figcaption className="mt-6 flex items-center gap-3 border-t border-lpu-border pt-6">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-orange-50 text-lpu-orange border border-orange-100">
+                    <figcaption className="mt-6 flex items-center gap-3 border-t border-black/10 pt-6">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-md border border-black/10 bg-white text-[#111111]">
                         <GraduationCap className="h-5 w-5" />
                       </div>
                       <div>
-                        <p className="font-bold text-gray-900">{t.name}</p>
-                        <p className="text-sm text-lpu-text-muted">{t.role}</p>
+                        <p className="font-bold text-[#111111]">{t.name}</p>
+                        <p className="text-sm text-[#9a9a9a]">{t.role}</p>
                       </div>
                     </figcaption>
-                    <div className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 border border-green-100">
+                    <div className="mt-4 inline-flex w-fit items-center gap-1.5 rounded-sm border border-black/10 bg-black/5 px-3 py-1 text-xs font-semibold text-[#111111]">
                       <TrendingUp className="h-3.5 w-3.5" />
                       {t.highlight}
                     </div>
@@ -372,27 +355,19 @@ export default function LandingPage() {
         </section>
 
         {/* For Mentors */}
-        <section className="border-t border-lpu-border bg-white py-24" id="for-mentors">
+        <section className="border-t border-black/10 py-24" id="for-mentors">
           <div className="container mx-auto max-w-7xl px-4 md:px-8">
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-lpu-orange via-orange-600 to-orange-700 shadow-lg">
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-white/10 blur-2xl"
-              />
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-black/10 blur-2xl"
-              />
+            <div className="relative overflow-hidden rounded-lg bg-white text-black">
               <div className="relative grid items-center gap-10 p-10 md:p-16 lg:grid-cols-2">
-                <div className="text-white">
-                  <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-sm font-medium backdrop-blur-sm mb-6">
+                <div>
+                  <span className="mb-6 inline-flex items-center gap-2 bg-black/10 px-3 py-1 text-sm font-medium">
                     <Users className="h-4 w-4" />
-                    For LPU Alumni
+                    For Alumni
                   </span>
-                  <h2 className="text-3xl font-bold tracking-tight sm:text-4xl leading-tight">
+                  <h2 className="font-display text-3xl leading-tight tracking-tight sm:text-4xl">
                     Give back. Guide the next generation of Chardi Kala professionals.
                   </h2>
-                  <p className="mt-4 text-lg text-orange-50 leading-relaxed">
+                  <p className="mt-4 text-lg leading-relaxed text-zinc-700">
                     Share your industry experience with students walking the path you once did. Choose your own
                     availability, pick mentees who match your expertise, and make a measurable impact — just an hour a
                     week.
@@ -403,32 +378,32 @@ export default function LandingPage() {
                       'Choose requests that match your expertise',
                       'Build your mentoring track record and profile',
                     ].map((point) => (
-                      <li key={point} className="flex items-center gap-3 text-orange-50">
-                        <CheckCircle2 className="h-5 w-5 shrink-0 text-white" />
+                      <li key={point} className="flex items-center gap-3 text-zinc-800">
+                        <CheckCircle2 className="h-5 w-5 shrink-0 text-black" />
                         {point}
                       </li>
                     ))}
                   </ul>
                 </div>
                 <div className="flex flex-col items-center lg:items-end">
-                  <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-xl text-center">
-                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-50 text-lpu-orange border border-orange-100">
+                  <div className="w-full max-w-sm rounded-lg bg-black p-8 text-center text-white">
+                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-md border border-white/20 bg-white/10 text-white">
                       <Award className="h-7 w-7" />
                     </div>
                     <h3 className="text-xl font-bold">Become a Verified Mentor</h3>
-                    <p className="mt-2 text-sm text-lpu-text-secondary leading-relaxed">
-                      Complete a quick verification of your LPU degree and professional profile. Most applications are
+                    <p className="mt-2 text-sm leading-relaxed text-white/70">
+                      Complete a quick verification of your degree and professional profile. Most applications are
                       reviewed within 48 hours.
                     </p>
                     <Button
                       size="lg"
-                      className="mt-6 h-12 w-full rounded-xl text-base font-bold bg-lpu-orange hover:bg-lpu-orange/95 text-white"
+                      className="glass-pill-active mt-6 h-12 w-full rounded-md text-base font-bold"
                       onClick={handleGetStarted}
                     >
                       Start Mentor Onboarding
                       <ArrowRight className="ml-2 h-5 w-5" />
                     </Button>
-                    <p className="mt-3 text-xs text-lpu-text-muted">Free forever for alumni volunteers</p>
+                    <p className="mt-3 text-xs text-white/60">Free forever for alumni volunteers</p>
                   </div>
                 </div>
               </div>
@@ -437,14 +412,15 @@ export default function LandingPage() {
         </section>
 
         {/* FAQ */}
-        <section className="bg-lpu-bg py-24 border-t border-lpu-border" id="faq">
+        <section className="scroll-mt-28 border-t border-black/10 py-24" id="faq">
           <div className="container mx-auto max-w-3xl px-4 md:px-8">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+            <div className="mb-16 text-center">
+              <p className="label-caps mb-4 text-[#9a9a9a]">FAQ</p>
+              <h2 className="font-display text-3xl tracking-tight text-[#111111] sm:text-4xl">
                 Frequently asked questions
               </h2>
-              <p className="mt-4 text-lg text-lpu-text-secondary">
-                Everything you need to know about getting started with MentorConnect.
+              <p className="mt-4 text-lg text-[#6b6b6b]">
+                Everything you need to know about getting started with Mentorly.
               </p>
             </div>
 
@@ -455,15 +431,15 @@ export default function LandingPage() {
                   <motion.div key={faq.question} {...fadeIn(i * 0.05)}>
                     <button
                       onClick={() => setOpenFaq(isOpen ? null : i)}
-                      className={`w-full rounded-2xl border bg-white p-6 text-left shadow-sm transition-colors ${
-                        isOpen ? 'border-orange-200' : 'border-gray-100 hover:border-orange-200'
+                      className={`pulse-card w-full rounded-lg border p-6 text-left transition-all ${
+                        isOpen ? 'ring-1 ring-black/20' : ''
                       }`}
                       aria-expanded={isOpen}
                     >
                       <div className="flex items-center justify-between gap-4">
-                        <h3 className="font-bold text-gray-900">{faq.question}</h3>
+                        <h3 className="font-bold text-[#111111]">{faq.question}</h3>
                         <ChevronDown
-                          className={`h-5 w-5 shrink-0 text-lpu-orange transition-transform duration-200 ${
+                          className={`h-5 w-5 shrink-0 text-[#111111] transition-transform duration-200 ${
                             isOpen ? 'rotate-180' : ''
                           }`}
                         />
@@ -474,7 +450,7 @@ export default function LandingPage() {
                         }`}
                       >
                         <div className="overflow-hidden">
-                          <p className="text-lpu-text-secondary leading-relaxed">{faq.answer}</p>
+                          <p className="leading-relaxed text-[#6b6b6b]">{faq.answer}</p>
                         </div>
                       </div>
                     </button>
@@ -485,37 +461,53 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* Minimal About + Waitlist (2026-11-10 minimal theme). */}
+        <MinimalAbout />
+        <Waitlist />
+
         {/* Final CTA */}
-        <section className="bg-white py-24 border-t border-lpu-border">
+        <section className="border-t border-black/10 py-24">
           <div className="container mx-auto max-w-4xl px-4 text-center md:px-8">
             <motion.div {...fadeIn(0)}>
-              <GraduationCap className="mx-auto mb-6 h-14 w-14 text-lpu-orange" />
-              <h2 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl md:text-5xl leading-tight">
+              <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-md border border-black/10 bg-white">
+                <GraduationCap className="h-8 w-8 text-[#111111]" />
+              </div>
+              <h2 className="font-display text-3xl leading-tight tracking-tight text-[#111111] sm:text-4xl md:text-5xl">
                 Your career deserves a great mentor.
               </h2>
-              <p className="mx-auto mt-6 max-w-2xl text-lg text-lpu-text-secondary leading-relaxed">
-                Join thousands of LPU students already accelerating their journeys with guidance from verified alumni.
+              <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-[#6b6b6b]">
+                Join thousands of students already accelerating their journeys with guidance from verified alumni.
                 Sign up today — your first mentorship request takes less than two minutes.
               </p>
               <div className="mt-10 flex flex-col justify-center gap-4 sm:flex-row">
                 <Button
                   size="lg"
-                  className="h-14 rounded-xl px-10 text-base shadow-sm font-bold bg-lpu-orange hover:bg-lpu-orange/95 text-white"
+                  className="h-14 rounded-md px-10 text-base font-bold"
                   onClick={handleGetStarted}
                 >
                   Get Started — It&apos;s Free
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </div>
-              <p className="mt-4 text-sm text-lpu-text-muted">
-                No credit card required · Open to all LPU students and alumni
+              <p className="mt-4 text-sm text-[#9a9a9a]">
+                No credit card required · Open to all students and alumni
               </p>
             </motion.div>
           </div>
         </section>
       </main>
 
-      <LandingFooter />
+      <div className="relative">
+        <LandingFooter />
+      </div>
+
+      {/* Auth popup (2026-11-11): dark frosted-glass iOS modal on the home
+          page itself — Login / Get Started / hero / CTA buttons open it,
+          Escape / backdrop / X close it, no navigation away. Mounted only
+          while open, so the form remounts fresh on the requested tab. */}
+      {authModalTab !== null && (
+        <AuthModal initialTab={authModalTab} onClose={() => setAuthModalTab(null)} />
+      )}
     </div>
   );
 }

@@ -1,12 +1,11 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Schema, HydratedDocument } from 'mongoose';
 
-export type SkillDocument = Skill & Document;
+export type SkillDocument = HydratedDocument<Skill>;
 
-@Schema({ timestamps: true })
-export class Skill {
-  @Prop({ required: true, unique: true, index: true })
+export interface Skill {
   name: string;
 }
 
-export const SkillSchema = SchemaFactory.createForClass(Skill);
+export const SkillSchema = new Schema<Skill>({
+  name: { required: true, unique: true, index: true, type: String },
+}, { timestamps: true });

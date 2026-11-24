@@ -1,61 +1,46 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { Schema, HydratedDocument, Types } from 'mongoose';
 
-export type StudentProfileDocument = StudentProfile & Document;
+export type StudentProfileDocument = HydratedDocument<StudentProfile>;
 
-@Schema({ timestamps: true })
-export class StudentProfile {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true, unique: true, index: true })
+export interface StudentProfile {
   userId: Types.ObjectId;
-
-  @Prop({ required: true })
   programme: string;
-
-  @Prop({ required: true })
   school: string;
-
-  @Prop({ required: true, type: Number })
   yearOfStudy: number;
-
-  @Prop({ required: true, type: Number })
   graduationYear: number;
-
-  @Prop({ type: [String], default: [] })
   currentSkills: string[];
-
-  @Prop({ required: true })
   targetRole: string;
-
-  @Prop({ required: true })
   targetIndustry: string;
-
-  @Prop({ type: [String], default: [] })
   careerGoals: string[];
-
-  @Prop({ type: [String], default: [] })
   interests: string[];
-
-  @Prop({ required: true })
   mentoringNeeds: string;
-
-  @Prop({ required: true })
   preferredFrequency: string;
-
-  @Prop({ default: false })
   onboardingStatus: boolean;
-
-  @Prop({ type: Number, default: 0 })
   profileCompletion: number;
-
-  @Prop({ default: true })
   profileVisibility: boolean;
 
   // MongoDB vector search embedding (array of floats)
-  @Prop({ type: [Number], index: false })
   studentEmbedding?: number[];
 }
 
-export const StudentProfileSchema = SchemaFactory.createForClass(StudentProfile);
+export const StudentProfileSchema = new Schema<StudentProfile>({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true, index: true },
+  programme: { required: true, type: String },
+  school: { required: true, type: String },
+  yearOfStudy: { required: true, type: Number },
+  graduationYear: { required: true, type: Number },
+  currentSkills: { type: [String], default: [] },
+  targetRole: { required: true, type: String },
+  targetIndustry: { required: true, type: String },
+  careerGoals: { type: [String], default: [] },
+  interests: { type: [String], default: [] },
+  mentoringNeeds: { required: true, type: String },
+  preferredFrequency: { required: true, type: String },
+  onboardingStatus: { default: false, type: Boolean },
+  profileCompletion: { type: Number, default: 0 },
+  profileVisibility: { default: true, type: Boolean },
+  studentEmbedding: { type: [Number], index: false },
+}, { timestamps: true });
 
 StudentProfileSchema.index({ targetIndustry: 1 });
 StudentProfileSchema.index({ targetRole: 1 });

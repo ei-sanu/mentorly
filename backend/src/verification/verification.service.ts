@@ -1,77 +1,55 @@
-import { Injectable, NotFoundException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
-import { InjectModel, InjectConnection } from '@nestjs/mongoose';
-import { Model, Connection, Types } from 'mongoose';
+import { NotFoundException, BadRequestException, InternalServerErrorException } from '../common/errors';
+import { AlumniVerificationModel, MentorProfileModel, StudentProfileModel, UserModel } from '../database/models';
+import { auditService } from '../audit/audit.service';
+import { notificationsService } from '../notifications/notifications.service';
+import { msg91Service } from '../integrations/msg91/msg91.service';
+import mongoose, { Types } from 'mongoose';
 import { AlumniVerification, AlumniVerificationDocument } from '../database/schemas/alumni-verification.schema';
 import { MentorProfile, MentorProfileDocument, VerificationStatus, MentorStatus } from '../database/schemas/mentor-profile.schema';
 import { StudentProfile, StudentProfileDocument } from '../database/schemas/student-profile.schema';
 import { User, UserDocument, Role } from '../database/schemas/user.schema';
 import { SubmitVerificationDto } from './dto/submit-verification.dto';
-import { AuditService } from '../audit/audit.service';
-import { NotificationsService } from '../notifications/notifications.service';
 import { runTransactionSafely } from '../database/transaction.helper';
-import Redis from 'ioredis';
+import { inMemoryStore } from '../common/in-memory-store';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
-import { Msg91Service } from '../integrations/msg91/msg91.service';
 import { globalEventBus } from '../common/event-bus';
 
-@Injectable()
+// AlumniVerification records created before 2026-11-18 stored a picsum
+// placeholder image URL when the applicant supplied no proof link. That URL
+// is not a real document and must never be served as one: treat it (and any
+// blank value) as "no document uploaded".
+const PLACEHOLDER_PROOF_DOCUMENT_URL = 'https://picsum.photos/200/300';
+
+function realProofDocumentUrl(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (trimmed === '' || trimmed === PLACEHOLDER_PROOF_DOCUMENT_URL) return '';
+  return trimmed;
+}
+
 export class VerificationService {
-  private redis: Redis | null = null;
+  // In-process store (was Upstash Redis) for OTP cooldowns, attempt
+  // counts, send limits and MSG91 reqIds. Unlike the old code — where
+  // a dead Upstash host silently disabled all of this — rate-limiting
+  // now always runs. State resets on restart; single process only.
+  private redis = inMemoryStore;
   private readonly cooldownSeconds: number;
   private readonly maxSendsPerHour: number;
   private readonly maxAttempts: number;
 
-  constructor(
-    @InjectModel(AlumniVerification.name)
-    private readonly verificationModel: Model<AlumniVerificationDocument>,
-    @InjectModel(MentorProfile.name)
-    private readonly mentorProfileModel: Model<MentorProfileDocument>,
-    @InjectModel(StudentProfile.name)
-    private readonly studentProfileModel: Model<StudentProfileDocument>,
-    @InjectModel(User.name)
-    private readonly userModel: Model<UserDocument>,
-    private readonly audit: AuditService,
-    private readonly notifications: NotificationsService,
-    @InjectConnection() private readonly connection: Connection,
-    private readonly msg91Service: Msg91Service,
-  ) {
+  private readonly verificationModel = AlumniVerificationModel;
+  private readonly mentorProfileModel = MentorProfileModel;
+  private readonly studentProfileModel = StudentProfileModel;
+  private readonly userModel = UserModel;
+  private get audit() { return auditService; }
+  private get notifications() { return notificationsService; }
+  private readonly connection = mongoose.connection;
+  private get msg91Service() { return msg91Service; }
+
+  constructor() {
     this.cooldownSeconds = parseInt(process.env.MSG91_OTP_RESEND_COOLDOWN_SECONDS || '30', 10);
     this.maxSendsPerHour = parseInt(process.env.MSG91_OTP_MAX_SENDS_PER_HOUR || '5', 10);
     this.maxAttempts = parseInt(process.env.MSG91_OTP_MAX_ATTEMPTS || '5', 10);
-
-    try {
-      const redisOptions: any = {};
-      if (process.env.REDIS_URL && process.env.REDIS_URL.startsWith('rediss://')) {
-        redisOptions.tls = { rejectUnauthorized: false };
-      }
-      this.redis = process.env.REDIS_URL
-        ? new Redis(process.env.REDIS_URL, {
-            lazyConnect: true,
-            ...redisOptions,
-            maxRetriesPerRequest: 1,
-            enableOfflineQueue: false,
-            connectTimeout: 5000,
-            retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 2000)),
-          })
-        : new Redis({
-            host: process.env.REDIS_HOST || 'localhost',
-            port: parseInt(process.env.REDIS_PORT || '6379', 10),
-            lazyConnect: true,
-            ...redisOptions,
-            maxRetriesPerRequest: 1,
-            enableOfflineQueue: false,
-            connectTimeout: 5000,
-            retryStrategy: (times) => (times > 5 ? null : Math.min(times * 200, 2000)),
-          });
-      this.redis.on('error', (err) => {
-        if (!(this.redis as any).__loggedError) {
-          (this.redis as any).__loggedError = true;
-          console.warn(`[verification] Redis unavailable: ${err.message}. Rate-limiting via Redis disabled.`);
-        }
-      });
-    } catch (err) {
-      console.error('Failed to initialize Redis inside VerificationService:', err);
-    }
   }
 
   async submit(userId: string, dto: SubmitVerificationDto): Promise<any> {
@@ -134,9 +112,15 @@ export class VerificationService {
   }
 
   async findAll(): Promise<any[]> {
-    // 1. Fetch mentor verifications
+    // 1. Fetch PENDING mentor verifications only. GET /verification feeds
+    // the admin "pending verifications" panel (adminService.getPendingVerifications),
+    // so decided records must not be returned: approve() sets VERIFIED,
+    // reject() sets REJECTED and requestChanges() sets CHANGES_REQUESTED, but
+    // an unfiltered .find() re-served all of them — an accepted verification
+    // reappeared in the panel on every reload. (The student side below already
+    // filters onboardingStatus UNDER_REVIEW.)
     const list = await this.verificationModel
-      .find()
+      .find({ status: VerificationStatus.PENDING })
       .populate({
         path: 'mentorProfileId',
         populate: { path: 'userId' },
@@ -169,7 +153,8 @@ export class VerificationService {
         : null,
       graduationYear: v.submittedData?.graduationYear || v.mentorProfileId?.graduationYear,
       programme: v.submittedData?.programme || v.mentorProfileId?.programme,
-      documentUrl: v.submittedData?.proofDocumentUrl || '',
+      // Accept both field names: onboarding stores proofDocumentUrl, SubmitVerificationDto stores documentUrl.
+      documentUrl: realProofDocumentUrl(v.submittedData?.proofDocumentUrl || v.submittedData?.documentUrl),
       submittedAt: (v as any).createdAt || new Date(),
       phone: v.mentorProfileId?.userId?.phone || '',
       registrationNumber: v.submittedData?.registrationNumber || v.mentorProfileId?.userId?.lpuRegistrationNumber || '',
@@ -205,9 +190,9 @@ export class VerificationService {
           lastName: student.lastName,
           email: student.email,
         },
-        documentUrl: (student as any).proofDocumentUrl || '',
-        graduationYear: profile?.graduationYear || 2026,
-        programme: profile?.programme || 'B.Tech STUDENT',
+        documentUrl: realProofDocumentUrl((student as any).proofDocumentUrl),
+        graduationYear: profile?.graduationYear,
+        programme: profile?.programme || '',
         phone: student.phone || '',
         registrationNumber: student.lpuRegistrationNumber || '',
         lpuEmail: student.lpuEmail || '',
@@ -239,9 +224,9 @@ export class VerificationService {
           lastName: studentUser.lastName,
           email: studentUser.email,
         },
-        documentUrl: (studentUser as any).proofDocumentUrl || '',
-        graduationYear: profile?.graduationYear || 2026,
-        programme: profile?.programme || 'B.Tech STUDENT',
+        documentUrl: realProofDocumentUrl((studentUser as any).proofDocumentUrl),
+        graduationYear: profile?.graduationYear,
+        programme: profile?.programme || '',
         phone: studentUser.phone || '',
         registrationNumber: studentUser.lpuRegistrationNumber || '',
         lpuEmail: studentUser.lpuEmail || '',
@@ -288,7 +273,7 @@ export class VerificationService {
         : null,
       graduationYear: verification.submittedData?.graduationYear || (verification.mentorProfileId as any)?.graduationYear,
       programme: verification.submittedData?.programme || (verification.mentorProfileId as any)?.programme,
-      documentUrl: verification.submittedData?.proofDocumentUrl || '',
+      documentUrl: realProofDocumentUrl(verification.submittedData?.proofDocumentUrl || verification.submittedData?.documentUrl),
       submittedAt: (verification as any).createdAt || new Date(),
       phone: (verification.mentorProfileId as any)?.userId?.phone || '',
       registrationNumber: verification.submittedData?.registrationNumber || (verification.mentorProfileId as any)?.userId?.lpuRegistrationNumber || '',
@@ -653,19 +638,31 @@ export class VerificationService {
   private normalizePhone(countryCode: string, nationalNumber: string) {
     const cleanCC = countryCode.replace(/\+/g, '').trim();
     let cleanNum = nationalNumber.replace(/[\s\-\+\(\)]/g, '').trim();
-    
-    // Auto-strip country code prefix if typed inside the number input field
-    if (cleanNum.startsWith(cleanCC)) {
-      cleanNum = cleanNum.substring(cleanCC.length);
-    }
-    
+
     // Auto-strip leading zero for Indian mobile numbers
     if (cleanCC === '91' && cleanNum.length === 11 && cleanNum.startsWith('0')) {
       cleanNum = cleanNum.substring(1);
     }
 
-    const fullNumber = `+${cleanCC}${cleanNum}`;
-    const parsed = parsePhoneNumberFromString(fullNumber);
+    // Try the number as typed first: +<country code><digits> is already
+    // the correct E.164 form for a plain national number
+    // (e.g. +91 + 9124953636 = +919124953636).
+    let parsed = parsePhoneNumberFromString(`+${cleanCC}${cleanNum}`);
+
+    // Only if that fails, the user may have typed the country code inside
+    // the number field (e.g. 919124953636). Strip the prefix and retry.
+    // Never strip unconditionally: a valid national number can legitimately
+    // start with the country-code digits — 9124953636 starts with "91" —
+    // and stripping those turned it into 8-digit 24953636, which
+    // libphonenumber rejects ("Invalid phone number format.").
+    if ((!parsed || !parsed.isValid()) && cleanNum.startsWith(cleanCC)) {
+      const stripped = cleanNum.substring(cleanCC.length);
+      const retry = parsePhoneNumberFromString(`+${cleanCC}${stripped}`);
+      if (retry && retry.isValid()) {
+        parsed = retry;
+      }
+    }
+
     if (!parsed || !parsed.isValid()) {
       throw new BadRequestException('Invalid phone number format.');
     }
@@ -707,7 +704,7 @@ export class VerificationService {
       throw new InternalServerErrorException(err.message || 'We couldn\'t send a verification code right now. Please try again.');
     }
 
-    // Save reqId in Redis if available
+    // Save reqId in the in-process store if available
     const reqId = this.msg91Service.extractReqId(sendResult);
     if (this.redis) {
       if (reqId) {
@@ -1018,3 +1015,5 @@ export class VerificationService {
     };
   }
 }
+
+export const verificationService = new VerificationService();

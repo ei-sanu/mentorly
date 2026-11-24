@@ -1,15 +1,13 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Schema, HydratedDocument } from 'mongoose';
 
-export type SystemConfigDocument = SystemConfig & Document;
+export type SystemConfigDocument = HydratedDocument<SystemConfig>;
 
-@Schema({ timestamps: true })
-export class SystemConfig {
-  @Prop({ required: true, unique: true, index: true })
+export interface SystemConfig {
   key: string; // e.g. "MATCHING_WEIGHTS"
-
-  @Prop({ type: MongooseSchema.Types.Mixed, required: true })
   value: any;
 }
 
-export const SystemConfigSchema = SchemaFactory.createForClass(SystemConfig);
+export const SystemConfigSchema = new Schema<SystemConfig>({
+  key: { required: true, unique: true, index: true, type: String },
+  value: { type: Schema.Types.Mixed, required: true },
+}, { timestamps: true });

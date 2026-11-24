@@ -6,9 +6,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-COPY tsconfig.json nest-cli.json ./
+COPY tsconfig.json ./
 COPY src ./src
-COPY test ./test
 
 RUN npm run build
 
@@ -24,6 +23,6 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=builder /app/dist ./dist
 
-EXPOSE 3001
+EXPOSE 3000
 
-CMD ["node", "dist/src/main"]
+CMD ["node", "dist/src/main.js"]

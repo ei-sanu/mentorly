@@ -1,7 +1,6 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { Schema, HydratedDocument, Types } from 'mongoose';
 
-export type ActionItemDocument = ActionItem & Document;
+export type ActionItemDocument = HydratedDocument<ActionItem>;
 
 export enum ActionItemStatus {
   PENDING = 'PENDING',
@@ -10,31 +9,24 @@ export enum ActionItemStatus {
   OVERDUE = 'OVERDUE',
 }
 
-@Schema({ timestamps: true })
-export class ActionItem {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Mentorship', required: true, index: true })
+export interface ActionItem {
   mentorshipId: Types.ObjectId;
-
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Goal', index: true })
   goalId?: Types.ObjectId;
-
-  @Prop({ required: true })
   task: string;
-
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true, index: true })
   assignedToId: Types.ObjectId;
-
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   createdById: Types.ObjectId;
-
-  @Prop({ required: true, type: Date })
   dueDate: Date;
-
-  @Prop({ required: true, default: ActionItemStatus.PENDING, enum: ActionItemStatus, index: true })
   status: ActionItemStatus;
-
-  @Prop({ type: Date })
   completedAt?: Date;
 }
 
-export const ActionItemSchema = SchemaFactory.createForClass(ActionItem);
+export const ActionItemSchema = new Schema<ActionItem>({
+  mentorshipId: { type: Schema.Types.ObjectId, ref: 'Mentorship', required: true, index: true },
+  goalId: { type: Schema.Types.ObjectId, ref: 'Goal', index: true },
+  task: { required: true, type: String },
+  assignedToId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  createdById: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  dueDate: { required: true, type: Date },
+  status: { required: true, default: ActionItemStatus.PENDING, enum: ActionItemStatus, index: true, type: String },
+  completedAt: { type: Date },
+}, { timestamps: true });

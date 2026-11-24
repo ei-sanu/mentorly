@@ -1,5 +1,9 @@
-# LPU MentorConnect Backend API
-## Lovely Professional University (LPU) Alumni Mentorship & Career Network
+> **Running locally?** See [`../RUNBOOK.md`](../RUNBOOK.md) — one terminal per service (backend :3000, frontend :8080, MongoDB via Docker).
+>
+> **Note (2026-11-10):** Redis / BullMQ were removed — the backend now uses an in-process store and queue. Do not start a Redis server.
+
+# Mentorly Backend API
+## Mentorly Alumni Mentorship & Career Network
 
 Production-grade Node.js + Express.js backend designed to integrate with the **React + TypeScript** frontend.
 
@@ -8,7 +12,7 @@ Production-grade Node.js + Express.js backend designed to integrate with the **R
 The backend utilizes a **Modular Monolith** architecture:
 * **Runtime & Framework**: Node.js + Express.js (TypeScript) with class-validator/DTO request parsing.
 * **Database**: MongoDB 7+ with Mongoose (18 schemas supporting users, mentorships, sessions, goals, and verifications).
-* **Caching & Jobs Queue**: Redis with BullMQ for background email deliveries, vector calculations, timeout triggers, and overdue action items.
+* **Caching & Jobs Queue**: In-process store + queue (no Redis — removed 2026-11-10) for background email deliveries, vector calculations, timeout triggers, and overdue action items.
 * **Authentication**: Clerk OAuth token verification with database user resolution and Role-Based Access Control (RBAC).
 * **Phone Verification**: MSG91 OTP service with international format normalization.
 * **Real-time Messaging**: Socket.IO WebSockets namespace matching private conversation channels.
@@ -27,7 +31,7 @@ The backend utilizes a **Modular Monolith** architecture:
          │           │           │
          └───────────┬───────────┘
                      ▼
-             [ MongoDB 7+ (Mongoose) ] <── [ Redis + BullMQ Jobs ]
+             [ MongoDB 7+ (Mongoose) ] <── [ In-process store + queue ]
 ```
 
 ---
@@ -37,7 +41,6 @@ The backend utilizes a **Modular Monolith** architecture:
 Ensure you have the following installed on your system:
 * **Node.js** (v18 or higher, Node 20+ recommended)
 * **MongoDB** (v7 or higher, local instance or MongoDB Atlas)
-* **Redis** (v7 or higher, local instance or Upstash Redis)
 
 ---
 
@@ -64,8 +67,6 @@ Ensure you have the following installed on your system:
 |---|---|---|
 | `PORT` | Local server port | `3000` |
 | `DATABASE_URL` | MongoDB connection string | `mongodb://localhost:27017/mentorconnect` |
-| `REDIS_HOST` | Redis host for queues & cache | `localhost` |
-| `REDIS_PORT` | Redis port | `6379` |
 | `CLERK_JWKS_URL` | Clerk JSON Web Key Set URL | `https://api.clerk.com/v1/jwks` |
 | `GEMINI_API_KEY` | Gemini AI key for embeddings | `(optional - fallbacks to dummy)` |
 | `RESEND_API_KEY` | Resend API key for notification emails | `(optional - fallbacks to console log)` |
@@ -77,7 +78,7 @@ Ensure you have the following installed on your system:
 
 ## 4. Database Setup & Seeding
 
-1. **Seed Data**: Populate database with Indian student/mentor records, LPU taxonomies, goals, and matching weights:
+1. **Seed Data**: Populate database with Indian student/mentor records, alumni taxonomies, goals, and matching weights:
    ```bash
    npm run seed
    ```
@@ -120,7 +121,7 @@ Swagger interactive API documentation will be available locally at:
 
 ### Email (Resend)
 * Utilizes Resend to trigger transactional notifications.
-* All email operations are queued in **BullMQ** so that slow SMTP relays never block database writes.
+* All email operations are queued in the **in-process queue** so that slow SMTP relays never block database writes.
 
 ---
 
@@ -147,11 +148,10 @@ npm run test
 
 ## 8. Docker & Compose Setup
 
-To deploy the entire stack locally in docker containers (MongoDB, Redis, and API):
+To deploy the entire stack locally in docker containers (MongoDB and API):
 ```bash
 docker compose up --build
 ```
 This maps:
 * Backend API to `http://localhost:3000`
 * MongoDB to host port `27017`
-* Redis cache to host port `6379`

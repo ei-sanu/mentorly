@@ -4,7 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import '@/styles/globals.css';
 import { MockAuthProvider } from '@/lib/mock-auth';
-import { ScrollToTop } from '@/components/scroll-to-top';
+import { ScrollToTop } from '@/components/layout/scroll-to-top';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

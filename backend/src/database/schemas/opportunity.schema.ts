@@ -1,7 +1,6 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { Schema, HydratedDocument, Types } from 'mongoose';
 
-export type OpportunityDocument = Opportunity & Document;
+export type OpportunityDocument = HydratedDocument<Opportunity>;
 
 export enum OpportunityType {
   FULL_TIME = 'FULL_TIME',
@@ -17,31 +16,24 @@ export enum OpportunityStatus {
   CLOSED = 'CLOSED',
 }
 
-@Schema({ timestamps: true })
-export class Opportunity {
-  @Prop({ required: true, trim: true })
+export interface Opportunity {
   title: string;
-
-  @Prop({ required: true, trim: true })
   company: string;
-
-  @Prop({ required: true, enum: OpportunityType, default: OpportunityType.FULL_TIME })
   type: OpportunityType;
-
-  @Prop({ default: '' })
   location?: string;
-
-  @Prop({ default: '' })
   description?: string;
-
-  @Prop({ required: true, default: OpportunityStatus.UPCOMING, enum: OpportunityStatus, index: true })
   status: OpportunityStatus;
-
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true, index: true })
   postedBy: Types.ObjectId;
-
-  @Prop({ default: Date.now })
   applyBy?: Date;
 }
 
-export const OpportunitySchema = SchemaFactory.createForClass(Opportunity);
+export const OpportunitySchema = new Schema<Opportunity>({
+  title: { required: true, trim: true, type: String },
+  company: { required: true, trim: true, type: String },
+  type: { required: true, enum: OpportunityType, default: OpportunityType.FULL_TIME, type: String },
+  location: { default: '', type: String },
+  description: { default: '', type: String },
+  status: { required: true, default: OpportunityStatus.UPCOMING, enum: OpportunityStatus, index: true, type: String },
+  postedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  applyBy: { default: Date.now, type: Date },
+}, { timestamps: true });

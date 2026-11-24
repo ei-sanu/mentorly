@@ -1,14 +1,9 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { AuditLogModel } from '../database/models';
+import { Types } from 'mongoose';
 import { AuditLog, AuditLogDocument } from '../database/schemas/audit-log.schema';
 
-@Injectable()
 export class AuditService {
-  constructor(
-    @InjectModel(AuditLog.name)
-    private readonly auditLogModel: Model<AuditLogDocument>,
-  ) {}
+  private readonly auditLogModel = AuditLogModel;
 
   async log(
     actorId: string | null,
@@ -52,3 +47,5 @@ export class AuditService {
     }));
   }
 }
+
+export const auditService = new AuditService();

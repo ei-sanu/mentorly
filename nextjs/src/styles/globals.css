@@ -1,0 +1,212 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./mentorly-minimal.css";
+
+@theme {
+  --color-lpu-orange: #F37F20;
+  --color-lpu-orange-hover: #D96A13;
+  --color-lpu-bg: #FCF6F5;
+  --color-lpu-surface: #FFFFFF;
+  --color-lpu-input-bg: #F6F0ED;
+  --color-lpu-text-primary: #171717;
+  --color-lpu-text-secondary: #525252;
+  --color-lpu-text-muted: #737373;
+  --color-lpu-border: #E5E5E5;
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+}
+
+/*
+ * Mentorly light theme (2026-11-11, white theme everywhere inside the
+ * app): the home page is white, and the dashboard / onboarding / settings
+ * pages now match it. The old Pulse dark glass is gone.
+ *
+ * .glass-panel / .glass-theme / .pulse-* class names are kept so existing
+ * components keep working, but they now render flat white cards with
+ * hairline borders — not dark frosted glass. The one deliberate dark
+ * surface left is the AuthModal/AuthForm iOS glass popup, which uses its
+ * own .auth-glass-card class in mentorly-minimal.css and is untouched.
+ */
+
+.glass-panel {
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05);
+}
+
+.glass-theme .pulse-card {
+  background: #fff;
+  border-color: rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.05);
+}
+
+.glass-theme .pulse-dialog {
+  background: #fff;
+  border-color: rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.15);
+}
+
+.glass-pill-active {
+  background: #fff;
+  color: #000;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+.glass-pill-active:hover {
+  background: #f5f5f5;
+  color: #000;
+}
+
+@keyframes glass-shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+.glass-theme .pulse-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.06);
+  animation: none;
+}
+
+.glass-theme .pulse-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(0, 0, 0, 0.06) 50%, transparent 80%);
+  animation: glass-shimmer 1.6s ease-in-out infinite;
+}
+
+/* ThinkingDots: 3 bouncing dots inside a glass pill (Pulse loader.tsx). */
+@keyframes glass-bounce {
+  0%, 100% { transform: translateY(0); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+  50% { transform: translateY(-25%); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+}
+.glass-thinking-dot {
+  animation: glass-bounce 1s infinite;
+}
+.glass-thinking-dot:nth-child(2) { animation-delay: 150ms; }
+.glass-thinking-dot:nth-child(3) { animation-delay: 300ms; }
+
+/* OTP send-button animation (2026-11-11, PhoneVerificationStep).
+ * "Send code" → tyre spins fast, brakes to a parked stop → button flips
+ * into "Verify" and the OTP panel slides in. Colours unchanged; this is
+ * motion only. All three animations are disabled under
+ * prefers-reduced-motion (states swap instantly instead). */
+
+/* Tyre brake: ~1.5 turns fast (linear), then a final half-turn that eases
+ * to a stop — the "brakes applied" moment. `both` fill keeps the tyre
+ * parked at 720deg (visually identical to 0deg) once the spin ends, so it
+ * never spins forever while the request is still in flight. */
+@keyframes otp-tyre-brake {
+  0% { transform: rotate(0deg); animation-timing-function: linear; }
+  55% { transform: rotate(540deg); animation-timing-function: cubic-bezier(0.15, 0.85, 0.35, 1); }
+  100% { transform: rotate(720deg); }
+}
+.otp-tyre {
+  animation: otp-tyre-brake 1.1s linear both;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Label flip: the button label flips in on every state change
+ * (Send code → Sending… → Verify). The span is keyed by state in the
+ * component, so it remounts and the flip replays each time. */
+@keyframes otp-label-flip-in {
+  from { opacity: 0; transform: perspective(300px) rotateX(-75deg) translateY(4px); }
+  to { opacity: 1; transform: perspective(300px) rotateX(0deg) translateY(0); }
+}
+.otp-label-flip {
+  display: inline-block;
+  animation: otp-label-flip-in 0.35s ease-out both;
+}
+
+/* OTP panel entrance: the "code sent" block (masked number + digit boxes +
+ * Verify button) slides/fades in once the code is sent. */
+@keyframes otp-slide-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.otp-enter { animation: otp-slide-in 0.45s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .otp-tyre, .otp-label-flip, .otp-enter { animation: none; }
+}
+
+@layer base {
+  body {
+    @apply bg-lpu-bg text-lpu-text-primary antialiased;
+    /* Pinned sans stack (Pulse §3.1): serif/mono resolve to the same stack. */
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+}
+
+/*
+ * App-shell theme bridge — LIGHT (2026-11-11, white theme).
+ * Every /app/* page (and any other page wrapped in .app-shell) was written
+ * in light tokens (bg-white, text-lpu-*, border-lpu-border, gray-50/100).
+ * The old bridge below re-skinned those tokens to Pulse dark glass with
+ * unlayered rules that beat Tailwind's utilities — that is what turned the
+ * whole inside of the app black. It is deleted: with the bridge gone the
+ * pages render in the light tokens they were written in, matching the home
+ * page. Only the exceptions that must stay white-on-dark-adjacent remain
+ * (white pills, logo pills), plus two narrow fixes:
+ *  - focus:ring-white on OnboardingPage inputs rendered an invisible
+ *    white focus ring on white inputs; it now rings near-black.
+ *  - the onboarding stepper is a solid dark pill by design (black pill on
+ *    a white page is in-family); its classes are outside any override
+ *    list, so it renders identically with or without .app-shell.
+ */
+.app-shell { background: #f2f2f2; color: #111; }
+.app-shell .focus\:ring-white:focus { --tw-ring-color: #111; }
+/* Exceptions — these stay white, by design. */
+.app-shell .glass-pill-active { background: #fff; color: #000; }
+.app-shell .logo-pill { background: #fff; }
+.app-shell img { background: transparent; }
+
+/* Display type (2026-11-10 minimal re-theme): the poster reference's
+ * huge italic serif is superseded — ONE clean sans stack everywhere.
+ * `.font-display` / `.font-display-roman` are kept as class names so
+ * existing markup keeps working, but they now resolve to the same
+ * Inter/system sans stack as the body (no italic, no Georgia). */
+.font-display {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-style: normal;
+  letter-spacing: -0.02em;
+}
+.font-display-roman {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-style: normal;
+  letter-spacing: -0.02em;
+}
+.text-outline {
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.65);
+}
+.label-caps {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+

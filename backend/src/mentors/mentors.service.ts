@@ -1,25 +1,54 @@
-import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { NotFoundException, BadRequestException } from '../common/errors';
+import { MentorProfileModel, AvailabilityModel, UserModel, MentorLeaveModel } from '../database/models';
+import { jobsService } from '../jobs/jobs.service';
+import { Types } from 'mongoose';
 import { MentorProfile, MentorProfileDocument, VerificationStatus, MentorStatus } from '../database/schemas/mentor-profile.schema';
 import { Availability, AvailabilityDocument } from '../database/schemas/availability.schema';
+import { MentorLeave, MentorLeaveDocument } from '../database/schemas/mentor-leave.schema';
 import { User, UserDocument } from '../database/schemas/user.schema';
 import { MentorQueryDto } from './dto/mentor-query.dto';
 import { UpdateMentorProfileDto } from './dto/update-mentor-profile.dto';
-import { JobsService } from '../jobs/jobs.service';
+import { CreateAvailabilityDto } from './dto/create-availability.dto';
+import { CreateLeaveDto } from './dto/create-leave.dto';
+import { recommendationsService } from '../recommendations/recommendations.service';
 
-@Injectable()
 export class MentorsService {
-  constructor(
-    @InjectModel(MentorProfile.name)
-    private readonly mentorProfileModel: Model<MentorProfileDocument>,
-    @InjectModel(Availability.name)
-    private readonly availabilityModel: Model<AvailabilityDocument>,
-    @InjectModel(User.name)
-    private readonly userModel: Model<UserDocument>,
-    @Inject(forwardRef(() => JobsService))
-    private readonly jobsService: JobsService,
-  ) {}
+  private readonly mentorProfileModel = MentorProfileModel;
+  private readonly availabilityModel = AvailabilityModel;
+  private readonly mentorLeaveModel = MentorLeaveModel;
+  private readonly userModel = UserModel;
+  private get jobsService() { return jobsService; }
+  // Same lazy-singleton pattern as jobsService above. No import cycle:
+  // recommendations.service imports only matching + llm-ranking, and
+  // neither of those (nor ollama.service) imports mentors.service.
+  private get recommendationsService() { return recommendationsService; }
+
+  /**
+   * (Item 5, 2026-11-20) Every /mentors/me/* write resolves the mentor's
+   * OWN profile from auth — a client-passed profile id is never trusted.
+   */
+  private async getOwnProfileId(userId: string): Promise<Types.ObjectId> {
+    const profile = await this.mentorProfileModel.findOne({ userId }).select('_id').lean();
+    if (!profile) {
+      throw new NotFoundException('Mentor profile not found');
+    }
+    return profile._id;
+  }
+
+  private mapAvailabilityRow(a: any) {
+    return { ...a, id: a._id.toString() };
+  }
+
+  private mapLeaveRow(l: any) {
+    return { ...l, id: l._id.toString() };
+  }
+
+  /** Start of the local today — leaves ending today still count as upcoming. */
+  private startOfToday(): Date {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
 
   async findMany(query: MentorQueryDto, isAdminOrOfficer = false): Promise<any> {
     const {
@@ -172,6 +201,134 @@ export class MentorsService {
     return this.availabilityModel.find({ mentorProfileId: new Types.ObjectId(id) }).lean();
   }
 
+  // ---- Availability + leave (Item 5, 2026-11-20) ----
+  // Weekly slots are advisory for session scheduling, not a gate on
+  // mentorship requests; leave is the dated, reasoned "unavailable" and
+  // IS enforced (requests.service create, sessions.service createSession)
+  // and shown to students. No PATCH for slots — delete + re-add avoids
+  // unique-index collisions on edit.
+
+  async getMyAvailability(userId: string): Promise<any> {
+    const profileId = await this.getOwnProfileId(userId);
+    const rows = await this.availabilityModel
+      .find({ mentorProfileId: profileId })
+      .sort({ dayOfWeek: 1, startTime: 1 })
+      .lean();
+    return rows.map((a) => this.mapAvailabilityRow(a));
+  }
+
+  async addAvailability(userId: string, dto: CreateAvailabilityDto): Promise<any> {
+    const profileId = await this.getOwnProfileId(userId);
+    // The DTO already regex-validates "HH:MM"; the lexical compare is
+    // the endTime > startTime rule (24h times compare correctly as
+    // strings) and is re-checked here so direct service calls are safe.
+    if (!dto.startTime || !dto.endTime || dto.endTime <= dto.startTime) {
+      throw new BadRequestException('End time must be after start time');
+    }
+    try {
+      const created = new this.availabilityModel({
+        mentorProfileId: profileId,
+        dayOfWeek: dto.dayOfWeek,
+        startTime: dto.startTime,
+        endTime: dto.endTime,
+        timezone: dto.timezone || 'Asia/Kolkata',
+      });
+      const saved = await created.save();
+      return this.mapAvailabilityRow(saved.toObject());
+    } catch (err: any) {
+      // Unique index { mentorProfileId, dayOfWeek, startTime } — the
+      // mentor already has this slot; a raw 11000 is not user-facing.
+      if (err?.code === 11000) {
+        throw new BadRequestException('This time slot already exists');
+      }
+      throw err;
+    }
+  }
+
+  async deleteAvailability(userId: string, slotId: string): Promise<any> {
+    const profileId = await this.getOwnProfileId(userId);
+    const deleted = await this.availabilityModel
+      .findOneAndDelete({ _id: new Types.ObjectId(slotId), mentorProfileId: profileId })
+      .lean();
+    if (!deleted) {
+      throw new NotFoundException('Availability slot not found');
+    }
+    return { deleted: true, id: slotId };
+  }
+
+  async getMyLeaves(userId: string): Promise<any> {
+    const profileId = await this.getOwnProfileId(userId);
+    const rows = await this.mentorLeaveModel
+      .find({ mentorProfileId: profileId })
+      .sort({ startDate: 1 })
+      .lean();
+    return rows.map((l) => this.mapLeaveRow(l));
+  }
+
+  async addLeave(userId: string, dto: CreateLeaveDto): Promise<any> {
+    const profileId = await this.getOwnProfileId(userId);
+    const start = new Date(dto.startDate);
+    const end = new Date(dto.endDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new BadRequestException('Leave dates must be valid dates');
+    }
+    // Normalise to day boundaries so endDate is the LAST day inclusive:
+    // a session on the end date is inside the leave, the day after is
+    // not. Without this, an endDate stored at midnight would stop
+    // blocking partway through its own last day.
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+    if (end < start) {
+      throw new BadRequestException('End date must be on or after start date');
+    }
+    // Overlap: any existing leave whose window intersects the new one.
+    const overlapping = await this.mentorLeaveModel
+      .findOne({
+        mentorProfileId: profileId,
+        startDate: { $lte: end },
+        endDate: { $gte: start },
+      })
+      .lean();
+    if (overlapping) {
+      throw new BadRequestException('This leave overlaps an existing leave');
+    }
+    const created = new this.mentorLeaveModel({
+      mentorProfileId: profileId,
+      startDate: start,
+      endDate: end,
+      reason: dto.reason,
+    });
+    const saved = await created.save();
+    return this.mapLeaveRow(saved.toObject());
+  }
+
+  async deleteLeave(userId: string, leaveId: string): Promise<any> {
+    const profileId = await this.getOwnProfileId(userId);
+    const deleted = await this.mentorLeaveModel
+      .findOneAndDelete({ _id: new Types.ObjectId(leaveId), mentorProfileId: profileId })
+      .lean();
+    if (!deleted) {
+      throw new NotFoundException('Leave not found');
+    }
+    return { deleted: true, id: leaveId };
+  }
+
+  /**
+   * Public, upcoming leaves only (endDate >= start of today) — what the
+   * student-facing request dialog and profile view read. The reason is
+   * mentor-written for display, so it is kept.
+   */
+  async getLeavesByMentorId(mentorProfileId: string): Promise<any> {
+    const rows = await this.mentorLeaveModel
+      .find({
+        mentorProfileId: new Types.ObjectId(mentorProfileId),
+        endDate: { $gte: this.startOfToday() },
+      })
+      .sort({ startDate: 1 })
+      .lean();
+    return rows.map((l) => this.mapLeaveRow(l));
+  }
+
   async getProfileByUserId(userId: string): Promise<any> {
     const profile = await this.mentorProfileModel
       .findOne({ userId })
@@ -224,6 +381,19 @@ export class MentorsService {
     const profileIdStr = profile._id.toString();
     await this.jobsService.queueMentorEmbedding(profileIdStr);
 
+    // (match-fix, 2026-11-20) A capacity / accepting change alters the
+    // "N slots left" badge on every cached recommendation list (1 h
+    // in-process cache under recommendations:student:<id>), and nothing
+    // invalidated it — a mentor changing capacity saw no change for up
+    // to an hour. Bust all recommendation caches when either field
+    // changes. invalidateAllCaches() never throws (logs + swallows).
+    // Other profile edits (expertise, bio, ...) are not invalidated
+    // here: they change match inputs, which is the matching slice's
+    // embedding/cache work, not this capacity fix.
+    if (dto.maxCapacity !== undefined || dto.acceptingMentees !== undefined) {
+      await this.recommendationsService.invalidateAllCaches();
+    }
+
     return {
       ...profile,
       id: profileIdStr,
@@ -253,3 +423,5 @@ export class MentorsService {
     };
   }
 }
+
+export const mentorsService = new MentorsService();

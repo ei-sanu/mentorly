@@ -1,26 +1,21 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { Schema, HydratedDocument, Types } from 'mongoose';
 
-export type AvailabilityDocument = Availability & Document;
+export type AvailabilityDocument = HydratedDocument<Availability>;
 
-@Schema({ timestamps: true })
-export class Availability {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'MentorProfile', required: true, index: true })
+export interface Availability {
   mentorProfileId: Types.ObjectId;
-
-  @Prop({ required: true, type: Number })
   dayOfWeek: number; // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-
-  @Prop({ required: true })
   startTime: string; // e.g. "10:00"
-
-  @Prop({ required: true })
   endTime: string; // e.g. "11:00"
-
-  @Prop({ required: true, default: 'Asia/Kolkata' })
   timezone: string;
 }
 
-export const AvailabilitySchema = SchemaFactory.createForClass(Availability);
+export const AvailabilitySchema = new Schema<Availability>({
+  mentorProfileId: { type: Schema.Types.ObjectId, ref: 'MentorProfile', required: true, index: true },
+  dayOfWeek: { required: true, type: Number },
+  startTime: { required: true, type: String },
+  endTime: { required: true, type: String },
+  timezone: { required: true, default: 'Asia/Kolkata', type: String },
+}, { timestamps: true });
 // Avoid duplicate time-slot registration for the same mentor
 AvailabilitySchema.index({ mentorProfileId: 1, dayOfWeek: 1, startTime: 1 }, { unique: true });

@@ -1,7 +1,6 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { Schema, HydratedDocument, Types } from 'mongoose';
 
-export type MentorshipRequestDocument = MentorshipRequest & Document;
+export type MentorshipRequestDocument = HydratedDocument<MentorshipRequest>;
 
 export enum RequestStatus {
   PENDING = 'PENDING',
@@ -11,25 +10,44 @@ export enum RequestStatus {
   CANCELLED = 'CANCELLED',
 }
 
-@Schema({ timestamps: true })
-export class MentorshipRequest {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true, index: true })
+export interface MentorshipRequest {
   studentId: Types.ObjectId;
-
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'MentorProfile', required: true, index: true })
   mentorId: Types.ObjectId;
-
-  @Prop({ required: true })
   message: string;
-
-  @Prop({ required: true })
   goal: string;
-
-  @Prop({ required: true, default: RequestStatus.PENDING, enum: RequestStatus, index: true })
   status: RequestStatus;
+  /**
+   * AI-refined summary of the student's goal + message, written by the
+   * local Llama model (see requests/request-refinement.service.ts).
+   * Present only when aiRefined is true.
+   */
+  aiRefinedSummary?: string;
+  /** Suggested focus areas from the same refinement (max 4). */
+  aiFocusAreas?: string[];
+  /** True ONLY when the LLM genuinely produced a refinement for this request. */
+  aiRefined?: boolean;
+  /**
+   * Ollama error kind when a refinement was attempted and failed
+   * ('unavailable' | 'timeout' | 'invalid_output' | 'disabled').
+   * Absent while a refinement is still running.
+   */
+  aiRefineError?: string;
+  /** When the refinement completed. */
+  aiRefinedAt?: Date;
 }
 
-export const MentorshipRequestSchema = SchemaFactory.createForClass(MentorshipRequest);
+export const MentorshipRequestSchema = new Schema<MentorshipRequest>({
+  studentId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  mentorId: { type: Schema.Types.ObjectId, ref: 'MentorProfile', required: true, index: true },
+  message: { required: true, type: String },
+  goal: { required: true, type: String },
+  status: { required: true, default: RequestStatus.PENDING, enum: RequestStatus, index: true, type: String },
+  aiRefinedSummary: { type: String },
+  aiFocusAreas: { type: [String] },
+  aiRefined: { type: Boolean, default: false },
+  aiRefineError: { type: String },
+  aiRefinedAt: { type: Date },
+}, { timestamps: true });
 
 MentorshipRequestSchema.index({ studentId: 1, status: 1, createdAt: -1 });
 MentorshipRequestSchema.index({ mentorId: 1, status: 1, createdAt: -1 });

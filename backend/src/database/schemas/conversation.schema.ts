@@ -1,15 +1,13 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { Schema, HydratedDocument, Types } from 'mongoose';
 
-export type ConversationDocument = Conversation & Document;
+export type ConversationDocument = HydratedDocument<Conversation>;
 
-@Schema({ timestamps: true })
-export class Conversation {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Mentorship', required: true, unique: true, index: true })
+export interface Conversation {
   mentorshipId: Types.ObjectId;
-
-  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }], required: true, index: true })
   participants: Types.ObjectId[];
 }
 
-export const ConversationSchema = SchemaFactory.createForClass(Conversation);
+export const ConversationSchema = new Schema<Conversation>({
+  mentorshipId: { type: Schema.Types.ObjectId, ref: 'Mentorship', required: true, unique: true, index: true },
+  participants: { type: [{ type: Schema.Types.ObjectId, ref: 'User' }], required: true, index: true },
+}, { timestamps: true });

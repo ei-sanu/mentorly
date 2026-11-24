@@ -1,9 +1,9 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { BadRequestException } from '../common/errors';
+import { Logger } from '../common/logger';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
 
-@Injectable()
 export class FilesService {
   private readonly logger = new Logger(FilesService.name);
   private s3Client: S3Client | null = null;
@@ -85,3 +85,5 @@ export class FilesService {
     }
   }
 }
+
+export const filesService = new FilesService();

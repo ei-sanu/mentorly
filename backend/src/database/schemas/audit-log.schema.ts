@@ -1,27 +1,21 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema, Types } from 'mongoose';
+import { Schema, HydratedDocument, Types } from 'mongoose';
 
-export type AuditLogDocument = AuditLog & Document;
+export type AuditLogDocument = HydratedDocument<AuditLog>;
 
-@Schema({ timestamps: { createdAt: true, updatedAt: false } })
-export class AuditLog {
-  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
+export interface AuditLog {
   actorId?: Types.ObjectId;
-
-  @Prop({ required: true, index: true })
   action: string; // e.g. "ROLE_CHANGE", "APPROVE_VERIFICATION"
-
-  @Prop({ required: true, index: true })
   entity: string; // e.g. "User", "AlumniVerification"
-
-  @Prop({ required: true, index: true })
   entityId: string;
-
-  @Prop({ type: MongooseSchema.Types.Mixed })
   metadata?: any;
-
-  @Prop()
   ipAddress?: string;
 }
 
-export const AuditLogSchema = SchemaFactory.createForClass(AuditLog);
+export const AuditLogSchema = new Schema<AuditLog>({
+  actorId: { type: Schema.Types.ObjectId, ref: 'User', index: true },
+  action: { required: true, index: true, type: String },
+  entity: { required: true, index: true, type: String },
+  entityId: { required: true, index: true, type: String },
+  metadata: { type: Schema.Types.Mixed },
+  ipAddress: { type: String },
+}, { timestamps: { createdAt: true, updatedAt: false } });

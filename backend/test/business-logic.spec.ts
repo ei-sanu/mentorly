@@ -1,14 +1,12 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, BadRequestException, ForbiddenException } from '@nestjs/common';
-import { getModelToken, getConnectionToken } from '@nestjs/mongoose';
-import { Model, Connection, Types } from 'mongoose';
-import { AppModule } from '../src/app.module';
-import { RequestsService } from '../src/requests/requests.service';
-import { MentorshipsService } from '../src/mentorships/mentorships.service';
-import { SessionsService } from '../src/sessions/sessions.service';
-import { RecommendationsService } from '../src/recommendations/recommendations.service';
-import { MentorsService } from '../src/mentors/mentors.service';
-import { MatchingService } from '../src/matching/matching.service';
+import mongoose, { Model, Connection, Types } from 'mongoose';
+import { BadRequestException, ForbiddenException } from '../src/common/errors';
+import { connectDatabase, UserModel, StudentProfileModel, MentorProfileModel, MentorshipRequestModel, MentorshipModel, SessionModel } from '../src/database/models';
+import { requestsService as requestsServiceSingleton, RequestsService } from '../src/requests/requests.service';
+import { mentorshipsService as mentorshipsServiceSingleton, MentorshipsService } from '../src/mentorships/mentorships.service';
+import { sessionsService as sessionsServiceSingleton, SessionsService } from '../src/sessions/sessions.service';
+import { recommendationsService as recommendationsServiceSingleton, RecommendationsService } from '../src/recommendations/recommendations.service';
+import { mentorsService as mentorsServiceSingleton, MentorsService } from '../src/mentors/mentors.service';
+import { matchingService as matchingServiceSingleton, MatchingService } from '../src/matching/matching.service';
 import { User, UserDocument, Role, UserStatus } from '../src/database/schemas/user.schema';
 import { StudentProfile, StudentProfileDocument } from '../src/database/schemas/student-profile.schema';
 import { MentorProfile, MentorProfileDocument, VerificationStatus, MentorStatus } from '../src/database/schemas/mentor-profile.schema';
@@ -18,7 +16,6 @@ import { Session, SessionDocument, SessionStatus } from '../src/database/schemas
 
 describe('LPU MentorConnect Business Logic Tests (E2E Integration)', () => {
   jest.setTimeout(30000);
-  let app: INestApplication;
   let connection: Connection;
   let requestsService: RequestsService;
   let mentorshipsService: MentorshipsService;
@@ -27,12 +24,12 @@ describe('LPU MentorConnect Business Logic Tests (E2E Integration)', () => {
   let mentorsService: MentorsService;
   let matchingService: MatchingService;
 
-  let userModel: Model<UserDocument>;
-  let studentProfileModel: Model<StudentProfileDocument>;
-  let mentorProfileModel: Model<MentorProfileDocument>;
-  let requestModel: Model<MentorshipRequestDocument>;
-  let mentorshipModel: Model<MentorshipDocument>;
-  let sessionModel: Model<SessionDocument>;
+  let userModel: any;
+  let studentProfileModel: any;
+  let mentorProfileModel: any;
+  let requestModel: any;
+  let mentorshipModel: any;
+  let sessionModel: any;
 
   let testStudentUser: any;
   let testMentorUser1: any;
@@ -42,27 +39,22 @@ describe('LPU MentorConnect Business Logic Tests (E2E Integration)', () => {
   let testMentorProfile2: any;
 
   beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
+    await connectDatabase();
 
-    app = moduleFixture.createNestApplication();
-    await app.init();
+    connection = mongoose.connection;
+    requestsService = requestsServiceSingleton;
+    mentorshipsService = mentorshipsServiceSingleton;
+    sessionsService = sessionsServiceSingleton;
+    recommendationsService = recommendationsServiceSingleton;
+    mentorsService = mentorsServiceSingleton;
+    matchingService = matchingServiceSingleton;
 
-    connection = moduleFixture.get<Connection>(getConnectionToken());
-    requestsService = moduleFixture.get<RequestsService>(RequestsService);
-    mentorshipsService = moduleFixture.get<MentorshipsService>(MentorshipsService);
-    sessionsService = moduleFixture.get<SessionsService>(SessionsService);
-    recommendationsService = moduleFixture.get<RecommendationsService>(RecommendationsService);
-    mentorsService = moduleFixture.get<MentorsService>(MentorsService);
-    matchingService = moduleFixture.get<MatchingService>(MatchingService);
-
-    userModel = moduleFixture.get<Model<UserDocument>>(getModelToken(User.name));
-    studentProfileModel = moduleFixture.get<Model<StudentProfileDocument>>(getModelToken(StudentProfile.name));
-    mentorProfileModel = moduleFixture.get<Model<MentorProfileDocument>>(getModelToken(MentorProfile.name));
-    requestModel = moduleFixture.get<Model<MentorshipRequestDocument>>(getModelToken(MentorshipRequest.name));
-    mentorshipModel = moduleFixture.get<Model<MentorshipDocument>>(getModelToken(Mentorship.name));
-    sessionModel = moduleFixture.get<Model<SessionDocument>>(getModelToken(Session.name));
+    userModel = UserModel;
+    studentProfileModel = StudentProfileModel;
+    mentorProfileModel = MentorProfileModel;
+    requestModel = MentorshipRequestModel;
+    mentorshipModel = MentorshipModel;
+    sessionModel = SessionModel;
   });
 
   beforeEach(async () => {
@@ -161,9 +153,7 @@ describe('LPU MentorConnect Business Logic Tests (E2E Integration)', () => {
   });
 
   afterAll(async () => {
-    if (app) {
-      await app.close();
-    }
+    await mongoose.disconnect();
   });
 
   // TEST 1

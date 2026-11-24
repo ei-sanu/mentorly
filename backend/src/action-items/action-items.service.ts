@@ -1,20 +1,15 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { NotFoundException, ForbiddenException, BadRequestException } from '../common/errors';
+import { ActionItemModel, MentorshipModel } from '../database/models';
+import { notificationsService } from '../notifications/notifications.service';
+import { Types } from 'mongoose';
 import { ActionItem, ActionItemDocument, ActionItemStatus } from '../database/schemas/action-item.schema';
 import { Mentorship, MentorshipDocument } from '../database/schemas/mentorship.schema';
 import { CreateActionItemDto } from './dto/create-action-item.dto';
-import { NotificationsService } from '../notifications/notifications.service';
 
-@Injectable()
 export class ActionItemsService {
-  constructor(
-    @InjectModel(ActionItem.name)
-    private readonly actionItemModel: Model<ActionItemDocument>,
-    @InjectModel(Mentorship.name)
-    private readonly mentorshipModel: Model<MentorshipDocument>,
-    private readonly notifications: NotificationsService,
-  ) {}
+  private readonly actionItemModel = ActionItemModel;
+  private readonly mentorshipModel = MentorshipModel;
+  private get notifications() { return notificationsService; }
 
   async findActionItemsForMentorship(mentorshipId: string, userId: string): Promise<any[]> {
     const mentorship = await this.mentorshipModel
@@ -61,6 +56,18 @@ export class ActionItemsService {
 
     if (studentUserIdStr !== userId && mentorUserIdStr !== userId) {
       throw new ForbiddenException('Access denied. You do not participate in this mentorship.');
+    }
+
+    // assignedToId / goalId arrive in the request body (no :id route
+    // guard can cover them). Reject malformed ids here, before
+    // `new Types.ObjectId()` turns them into a raw BSONError ("input
+    // must be a 24 character hex string...") that used to reach the
+    // user as a 500.
+    if (!Types.ObjectId.isValid(dto.assignedToId)) {
+      throw new BadRequestException('Please choose a valid person to assign this task to.');
+    }
+    if (dto.goalId && !Types.ObjectId.isValid(dto.goalId)) {
+      throw new BadRequestException('That goal reference looks broken. Please try again.');
     }
 
     const item = new this.actionItemModel({
@@ -139,3 +146,5 @@ export class ActionItemsService {
     };
   }
 }
+
+export const actionItemsService = new ActionItemsService();

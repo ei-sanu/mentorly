@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { userService } from '@/services/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -14,32 +14,48 @@ export default function OnboardingReviewPage() {
   const [loading, setLoading] = useState(true);
   const [userState, setUserState] = useState<any>(null);
 
-  useEffect(() => {
-    async function checkStatus() {
-      try {
-        const fresh = await userService.getMe();
-        if (fresh) {
-          setUserState(fresh);
-          // Redirect if already approved or under review
-          if (fresh.onboardingStatus === 'APPROVED') {
-            router.push(`/app/${fresh.role.toLowerCase().replace('_', '-')}/dashboard`);
-          } else if (fresh.onboardingStatus === 'UNDER_REVIEW') {
-            router.push('/onboarding/status');
-          }
+  // One logical status check.
+  // NOTE: `router` is intentionally NOT a dep of this callback. The
+  // useRouter shim (src/compat/next-navigation.ts) returns a fresh
+  // object on every render, so depending on it re-created this
+  // callback — and re-ran every effect using it — on every render.
+  // The underlying navigate() is stable, so the captured router still
+  // works (same reasoning as the AppLayout dep fix, 2026-11-11).
+  const checkStatus = useCallback(async () => {
+    try {
+      const fresh = await userService.getMe();
+      if (fresh) {
+        setUserState(fresh);
+        // Redirect if already approved or under review
+        if (fresh.onboardingStatus === 'APPROVED') {
+          router.push(`/app/${fresh.role.toLowerCase().replace('_', '-')}/dashboard`);
+        } else if (fresh.onboardingStatus === 'UNDER_REVIEW') {
+          router.push('/onboarding/status');
         }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
       }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
     }
+  }, []);
+
+  // Fetch ONCE on mount. The old effect listed `router` as a dep — the
+  // same loop the status page had (fresh router object per render, so
+  // the effect re-ran and re-called getMe() on every render). The ref
+  // guard makes this one-shot even under StrictMode's double-invoke
+  // (same pattern as OnboardingPage's initial auth check).
+  const initialCheckDone = useRef(false);
+  useEffect(() => {
+    if (initialCheckDone.current) return;
+    initialCheckDone.current = true;
     checkStatus();
-  }, [router]);
+  }, [checkStatus]);
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-lpu-bg">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-lpu-orange border-t-transparent mx-auto"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-neutral-900 border-t-transparent mx-auto"></div>
       </div>
     );
   }
@@ -47,8 +63,8 @@ export default function OnboardingReviewPage() {
   const isRejected = userState?.onboardingStatus === 'REJECTED';
 
   return (
-    <div className="min-h-screen bg-lpu-bg flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="max-w-md w-full rounded-3xl shadow-sm border border-lpu-border overflow-hidden bg-white">
+    <div className="glass-theme app-shell relative min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <Card className="relative max-w-md w-full rounded-3xl shadow-sm border border-lpu-border overflow-hidden bg-white">
         <CardHeader className="bg-lpu-surface border-b border-lpu-border text-center p-8">
           <div className="h-16 w-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mb-4 mx-auto border border-red-100">
             {isRejected ? <ShieldAlert className="h-8 w-8" /> : <AlertTriangle className="h-8 w-8 text-amber-500" />}
@@ -76,7 +92,7 @@ export default function OnboardingReviewPage() {
           </div>
 
           <div className="flex flex-col gap-2 pt-4 border-t border-gray-100">
-            <Button onClick={() => router.push('/onboarding')} className="w-full rounded-xl h-11 bg-lpu-orange hover:bg-lpu-orange/95 flex items-center justify-center gap-2">
+            <Button onClick={() => router.push('/onboarding')} className="w-full rounded-xl h-11 bg-neutral-900 hover:bg-neutral-800 flex items-center justify-center gap-2">
               Update Profile & Resubmit <ArrowRight className="w-4 h-4" />
             </Button>
             <Button 

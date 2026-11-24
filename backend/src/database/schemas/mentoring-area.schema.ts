@@ -1,12 +1,11 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Schema, HydratedDocument } from 'mongoose';
 
-export type MentoringAreaDocument = MentoringArea & Document;
+export type MentoringAreaDocument = HydratedDocument<MentoringArea>;
 
-@Schema({ timestamps: true })
-export class MentoringArea {
-  @Prop({ required: true, unique: true, index: true })
+export interface MentoringArea {
   name: string;
 }
 
-export const MentoringAreaSchema = SchemaFactory.createForClass(MentoringArea);
+export const MentoringAreaSchema = new Schema<MentoringArea>({
+  name: { required: true, unique: true, index: true, type: String },
+}, { timestamps: true });

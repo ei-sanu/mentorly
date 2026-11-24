@@ -1,5 +1,4 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, HydratedDocument } from 'mongoose';
+import { Schema, HydratedDocument } from 'mongoose';
 
 export type UserDocument = HydratedDocument<User>;
 
@@ -9,6 +8,14 @@ export enum Role {
   ALUMNI_OFFICER = 'ALUMNI_OFFICER',
   PLACEMENT_OFFICER = 'PLACEMENT_OFFICER',
   ADMIN = 'ADMIN',
+  // PENDING (2026-11-12): a brand-new account provisioned without ANY
+  // role signal (e.g. first-time OAuth sign-in, where no role was ever
+  // chosen). It means "no role chosen yet" — never a silent STUDENT.
+  // The onboarding role gate asks the user, and submitOnboarding writes
+  // the chosen role. No pre-existing account holds this value (the
+  // guard only assigns it at provisioning time), so adding it is
+  // migration-safe: existing users keep their roles untouched.
+  PENDING = 'PENDING',
 }
 
 export enum UserStatus {
@@ -18,36 +25,14 @@ export enum UserStatus {
   PENDING = 'PENDING',
 }
 
-@Schema({ timestamps: true })
-export class User extends Document {
-  @Prop({ required: true, unique: true, index: true })
+export interface User {
   clerkUserId: string;
-
-  @Prop({ required: true, unique: true, index: true })
   email: string;
-
-  @Prop({ required: true, index: true, enum: Role })
   role: Role;
-
-  @Prop({ required: true, default: UserStatus.ACTIVE, index: true, enum: UserStatus })
   status: UserStatus;
-
-  @Prop({ required: true, default: 'NOT_STARTED', index: true })
   onboardingStatus: string;
-
-  @Prop({ required: true, default: 'NOT_SUBMITTED', index: true })
   verificationStatus: string;
-
-  @Prop()
   phone?: string;
-
-  @Prop({ type: {
-    countryCode: { type: String },
-    nationalNumber: { type: String },
-    e164: { type: String },
-    verified: { type: Boolean, default: false },
-    verifiedAt: { type: Date }
-  }, _id: false })
   phoneDetails?: {
     countryCode: string;
     nationalNumber: string;
@@ -55,49 +40,54 @@ export class User extends Document {
     verified: boolean;
     verifiedAt?: Date;
   };
-
-  @Prop({ type: {
-    status: { type: String, default: 'NOT_STARTED', enum: ['NOT_STARTED', 'PENDING', 'VERIFIED', 'FAILED', 'LOCKED'] },
-    attempts: { type: Number, default: 0 },
-    lastSentAt: { type: Date },
-    verifiedAt: { type: Date }
-  }, _id: false })
   phoneVerification?: {
     status: 'NOT_STARTED' | 'PENDING' | 'VERIFIED' | 'FAILED' | 'LOCKED';
     attempts: number;
     lastSentAt?: Date;
     verifiedAt?: Date;
   };
-
-  @Prop()
   lpuRegistrationNumber?: string;
-
-  @Prop()
   lpuRegistrationNumberNormalized?: string;
-
-  @Prop()
   lpuEmail?: string;
-
-  @Prop()
   rejectionReason?: string;
-
-  @Prop()
   changeRequestReason?: string;
-
-  @Prop({ required: true })
   firstName: string;
-
-  @Prop({ required: true })
   lastName: string;
-
-  @Prop()
   avatar?: string;
-
-  @Prop()
   lastLoginAt?: Date;
 }
 
-export const UserSchema = SchemaFactory.createForClass(User);
+export const UserSchema = new Schema<User>({
+  clerkUserId: { required: true, unique: true, index: true, type: String },
+  email: { required: true, unique: true, index: true, type: String },
+  role: { required: true, index: true, enum: Role, type: String },
+  status: { required: true, default: UserStatus.ACTIVE, index: true, enum: UserStatus, type: String },
+  onboardingStatus: { required: true, default: 'NOT_STARTED', index: true, type: String },
+  verificationStatus: { required: true, default: 'NOT_SUBMITTED', index: true, type: String },
+  phone: { type: String },
+  phoneDetails: { type: {
+    countryCode: { type: String },
+    nationalNumber: { type: String },
+    e164: { type: String },
+    verified: { type: Boolean, default: false },
+    verifiedAt: { type: Date }
+  }, _id: false },
+  phoneVerification: { type: {
+    status: { type: String, default: 'NOT_STARTED', enum: ['NOT_STARTED', 'PENDING', 'VERIFIED', 'FAILED', 'LOCKED'] },
+    attempts: { type: Number, default: 0 },
+    lastSentAt: { type: Date },
+    verifiedAt: { type: Date }
+  }, _id: false },
+  lpuRegistrationNumber: { type: String },
+  lpuRegistrationNumberNormalized: { type: String },
+  lpuEmail: { type: String },
+  rejectionReason: { type: String },
+  changeRequestReason: { type: String },
+  firstName: { required: true, type: String },
+  lastName: { required: true, type: String },
+  avatar: { type: String },
+  lastLoginAt: { type: Date },
+}, { timestamps: true });
 
 UserSchema.index({ role: 1, createdAt: -1 });
 UserSchema.index({ role: 1, onboardingStatus: 1 });

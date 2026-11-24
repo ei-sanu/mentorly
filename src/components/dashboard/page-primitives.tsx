@@ -17,7 +17,7 @@ export function PageHeader({ title, description, icon: Icon, actions }: PageHead
     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
       <div className="flex items-start gap-3">
         {Icon && (
-          <div className="h-10 w-10 rounded-xl bg-orange-50 flex items-center justify-center text-lpu-orange shrink-0">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-900">
             <Icon className="h-5 w-5" />
           </div>
         )}
@@ -88,9 +88,19 @@ export function PageError({ message, onRetry }: { message: string; onRetry?: () 
 
 export function PageLoader({ message = 'Loading…' }: { message?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <RefreshCw className="h-6 w-6 text-lpu-orange animate-spin mb-3" />
-      <p className="text-sm text-lpu-text-secondary">{message}</p>
+    <div className="flex min-h-[320px] flex-col items-center justify-center gap-4 text-center" role="status" aria-busy="true">
+      <div className="glass-panel flex w-fit items-center gap-2.5 rounded-full px-4 py-2 text-xs text-neutral-500">
+        <span className="flex items-center gap-1" aria-hidden="true">
+          <span className="glass-thinking-dot h-1.5 w-1.5 rounded-full bg-current" />
+          <span className="glass-thinking-dot h-1.5 w-1.5 rounded-full bg-current" />
+          <span className="glass-thinking-dot h-1.5 w-1.5 rounded-full bg-current" />
+        </span>
+        {message}
+      </div>
+      <div className="w-64 space-y-2">
+        <div className="pulse-skeleton h-3 w-full rounded-md" aria-hidden="true" />
+        <div className="pulse-skeleton h-3 w-2/3 rounded-md" aria-hidden="true" />
+      </div>
     </div>
   );
 }

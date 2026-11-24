@@ -1,21 +1,22 @@
 {
   "compilerOptions": {
     "module": "commonjs",
-    "declaration": true,
-    "removeComments": true,
-    "emitDecoratorMetadata": true,
-    "experimentalDecorators": true,
+    "declaration": false,
+    "removeComments": false,
     "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
     "target": "es2021",
     "sourceMap": true,
     "outDir": "./dist",
-    "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": false,
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "resolveJsonModule": true,
     "paths": {
       "src/*": ["./src/*"]
     }

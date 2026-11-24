@@ -1,22 +1,20 @@
-import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { NotFoundException } from '../common/errors';
+import { StudentProfileModel, UserModel } from '../database/models';
+import { jobsService } from '../jobs/jobs.service';
+import { recommendationsService } from '../recommendations/recommendations.service';
 import { StudentProfile, StudentProfileDocument } from '../database/schemas/student-profile.schema';
 import { User, UserDocument } from '../database/schemas/user.schema';
 import { UpdateStudentProfileDto } from './dto/update-student-profile.dto';
 import { UpdateStudentCareerDto } from './dto/update-student-career.dto';
-import { JobsService } from '../jobs/jobs.service';
 
-@Injectable()
 export class StudentsService {
-  constructor(
-    @InjectModel(StudentProfile.name)
-    private readonly studentProfileModel: Model<StudentProfileDocument>,
-    @InjectModel(User.name)
-    private readonly userModel: Model<UserDocument>,
-    @Inject(forwardRef(() => JobsService))
-    private readonly jobsService: JobsService,
-  ) {}
+  private readonly studentProfileModel = StudentProfileModel;
+  private readonly userModel = UserModel;
+  private get jobsService() { return jobsService; }
+  // Same lazy-singleton pattern as jobsService above. No import cycle:
+  // recommendations.service imports only matching + llm-ranking, and
+  // neither of those (nor ollama.service) imports students.service.
+  private get recommendationsService() { return recommendationsService; }
 
   async getProfileByUserId(userId: string): Promise<any> {
     const profile = await this.studentProfileModel
@@ -69,6 +67,13 @@ export class StudentsService {
     const profileIdStr = profile._id.toString();
     await this.jobsService.queueStudentEmbedding(profileIdStr);
 
+    // (match-fix, 2026-11-20) A student profile/career edit changes match
+    // inputs, but nothing invalidated the 1 h recommendations cache
+    // (recommendations:student:<id>) — the student kept seeing stale
+    // matches for up to an hour. Bust this student's cache after save.
+    // invalidateCacheForStudent() never throws (logs + swallows).
+    await this.recommendationsService.invalidateCacheForStudent(profileIdStr);
+
     return {
       ...profile,
       id: profileIdStr,
@@ -108,6 +113,13 @@ export class StudentsService {
     const profileIdStr = profile._id.toString();
     await this.jobsService.queueStudentEmbedding(profileIdStr);
 
+    // (match-fix, 2026-11-20) A student profile/career edit changes match
+    // inputs, but nothing invalidated the 1 h recommendations cache
+    // (recommendations:student:<id>) — the student kept seeing stale
+    // matches for up to an hour. Bust this student's cache after save.
+    // invalidateCacheForStudent() never throws (logs + swallows).
+    await this.recommendationsService.invalidateCacheForStudent(profileIdStr);
+
     return {
       ...profile,
       id: profileIdStr,
@@ -128,3 +140,5 @@ export class StudentsService {
     return Math.min(score, 100);
   }
 }
+
+export const studentsService = new StudentsService();

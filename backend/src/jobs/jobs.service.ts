@@ -1,7 +1,8 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Inject, forwardRef, Logger } from '@nestjs/common';
-import { Queue, Worker, Job } from 'bullmq';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Logger } from '../common/logger';
+import { InProcessQueue } from '../common/in-process-queue';
+import { MentorshipRequestModel, ActionItemModel, NotificationModel, MentorshipModel, SessionModel, GoalModel, EngagementLogModel, MessageModel, ConversationModel } from '../database/models';
+import { matchingService } from '../matching/matching.service';
+import { emailService } from '../email/email.service';
 import { MentorshipRequest, MentorshipRequestDocument, RequestStatus } from '../database/schemas/mentorship-request.schema';
 import { ActionItem, ActionItemDocument, ActionItemStatus } from '../database/schemas/action-item.schema';
 import { Notification, NotificationDocument } from '../database/schemas/notification.schema';
@@ -11,116 +12,51 @@ import { Goal, GoalDocument, GoalStatus } from '../database/schemas/goal.schema'
 import { EngagementLog, EngagementLogDocument, RiskLevel } from '../database/schemas/engagement-log.schema';
 import { Message, MessageDocument } from '../database/schemas/message.schema';
 import { Conversation, ConversationDocument } from '../database/schemas/conversation.schema';
-import { MatchingService } from '../matching/matching.service';
-import { EmailService } from '../email/email.service';
 
-@Injectable()
-export class JobsService implements OnModuleInit, OnModuleDestroy {
+export class JobsService {
   private readonly logger = new Logger(JobsService.name);
-  private embeddingQueue: Queue;
-  private emailQueue: Queue;
-  private workerEmbedding: Worker;
-  private workerEmail: Worker;
+  // In-process queues (was BullMQ over Upstash Redis). Same processors,
+  // same concurrency (embeddings 2, emails 3) and retry shape. Jobs are
+  // not durable across restarts — see in-process-queue.ts.
+  private embeddingQueue: InProcessQueue<{ type: string; profileId: string }>;
+  private emailQueue: InProcessQueue<{ userId: string; type: string; title: string; message: string }>;
   private intervalId: NodeJS.Timeout;
 
-  constructor(
-    @InjectModel(MentorshipRequest.name)
-    private readonly requestModel: Model<MentorshipRequestDocument>,
-    @InjectModel(ActionItem.name)
-    private readonly actionItemModel: Model<ActionItemDocument>,
-    @InjectModel(Notification.name)
-    private readonly notificationModel: Model<NotificationDocument>,
-    @InjectModel(Mentorship.name)
-    private readonly mentorshipModel: Model<MentorshipDocument>,
-    @InjectModel(Session.name)
-    private readonly sessionModel: Model<SessionDocument>,
-    @InjectModel(Goal.name)
-    private readonly goalModel: Model<GoalDocument>,
-    @InjectModel(EngagementLog.name)
-    private readonly engagementLogModel: Model<EngagementLogDocument>,
-    @InjectModel(Message.name)
-    private readonly messageModel: Model<MessageDocument>,
-    @InjectModel(Conversation.name)
-    private readonly conversationModel: Model<ConversationDocument>,
-    @Inject(forwardRef(() => MatchingService))
-    private readonly matchingService: MatchingService,
-    @Inject(forwardRef(() => EmailService))
-    private readonly emailService: EmailService,
-  ) {}
+  private readonly requestModel = MentorshipRequestModel;
+  private readonly actionItemModel = ActionItemModel;
+  private readonly notificationModel = NotificationModel;
+  private readonly mentorshipModel = MentorshipModel;
+  private readonly sessionModel = SessionModel;
+  private readonly goalModel = GoalModel;
+  private readonly engagementLogModel = EngagementLogModel;
+  private readonly messageModel = MessageModel;
+  private readonly conversationModel = ConversationModel;
+  private get matchingService() { return matchingService; }
+  private get emailService() { return emailService; }
 
     async onModuleInit() {
-      const connection: any = {
-        host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT || '6379', 10),
-        maxRetriesPerRequest: 1,
-        enableReadyCheck: false,
-        connectTimeout: 5000,
-        retryStrategy: (times: number) => (times > 5 ? null : Math.min(times * 200, 2000)),
-      };
-
-      if (process.env.REDIS_URL) {
-        try {
-          const parsed = new URL(process.env.REDIS_URL);
-          connection.host = parsed.hostname;
-          connection.port = parseInt(parsed.port || '6379', 10);
-          if (parsed.password) {
-            connection.password = decodeURIComponent(parsed.password);
-          }
-          if (parsed.username) {
-            connection.username = parsed.username;
-          }
-          if (process.env.REDIS_URL.startsWith('rediss://')) {
-            connection.tls = { rejectUnauthorized: false };
-          }
-        } catch (err) {
-          this.logger.warn(`Failed to parse REDIS_URL: ${err.message}`);
-        }
-      }
-
-    // Instantiate Queues
-    this.embeddingQueue = new Queue('embeddings', { connection });
-    this.emailQueue = new Queue('emails', { connection });
-
-    this.embeddingQueue.on('error', (err) => this.logger.warn(`[embeddingQueue] ${err.message}`));
-    this.emailQueue.on('error', (err) => this.logger.warn(`[emailQueue] ${err.message}`));
-
-    // Instantiate Workers
-    this.workerEmbedding = new Worker(
+    // In-process queues — no Redis connection to build, no Upstash host.
+    this.embeddingQueue = new InProcessQueue(
       'embeddings',
-      async (job: Job) => {
-        try {
-          const { type, profileId } = job.data;
-          this.logger.log(`Processing embedding job for ${type} profile: ${profileId}`);
-
-          if (type === 'student') {
-            await this.matchingService.generateAndSaveStudentEmbedding(profileId);
-          } else if (type === 'mentor') {
-            await this.matchingService.generateAndSaveMentorEmbedding(profileId);
-          }
-        } catch (err) {
-          this.logger.error(`Error in embedding worker: ${err.message}`);
-          throw err;
+      async ({ type, profileId }) => {
+        this.logger.log(`Processing embedding job for ${type} profile: ${profileId}`);
+        if (type === 'student') {
+          await this.matchingService.generateAndSaveStudentEmbedding(profileId);
+        } else if (type === 'mentor') {
+          await this.matchingService.generateAndSaveMentorEmbedding(profileId);
         }
       },
-      { connection, concurrency: 2 },
+      2,
     );
-    this.workerEmbedding.on('error', (err) => this.logger.warn(`[embeddingWorker] ${err.message}`));
 
-    this.workerEmail = new Worker(
+    this.emailQueue = new InProcessQueue(
       'emails',
-      async (job: Job) => {
-        try {
-          const { userId, type, title, message } = job.data;
-          this.logger.log(`Processing email job for user ${userId}: ${title}`);
-          await this.emailService.sendNotificationEmail(userId, type, title, message);
-        } catch (err) {
-          this.logger.error(`Error in email worker: ${err.message}`);
-          throw err;
-        }
+      async ({ userId, type, title, message }) => {
+        this.logger.log(`Processing email job for user ${userId}: ${title}`);
+        await this.emailService.sendNotificationEmail(userId, type, title, message);
       },
-      { connection, concurrency: 3 },
+      3,
     );
-    this.workerEmail.on('error', (err) => this.logger.warn(`[emailWorker] ${err.message}`));
 
     // Periodic sweep every 1 minute
     this.intervalId = setInterval(async () => {
@@ -128,11 +64,13 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
       await this.checkOverdueActionItems();
       await this.runEngagementEvaluations();
     }, 60000);
+
+    this.logger.log('Background queues initialised (embeddings ×2, emails ×3) — sweeps every 60s');
   }
 
   async onModuleDestroy() {
-    if (this.workerEmbedding) await this.workerEmbedding.close();
-    if (this.workerEmail) await this.workerEmail.close();
+    if (this.embeddingQueue) await this.embeddingQueue.close();
+    if (this.emailQueue) await this.emailQueue.close();
     if (this.intervalId) clearInterval(this.intervalId);
   }
 
@@ -329,3 +267,5 @@ export class JobsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 }
+
+export const jobsService = new JobsService();
